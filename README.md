@@ -4,6 +4,14 @@
 
 [正式站点](https://daily-journal-80695.app.workbuddy.host/) · [协作开发](CONTRIBUTING.md) · [云端契约](cloud/README.md) · [版本说明](CHANGELOG.md)
 
+## 使用哪个目录
+
+**唯一主项目是 `DailyReview`。** 本机路径为 `D:\Sciences\common\DailyReview`：WorkBuddy 打开它，开发和 GitHub 提交在这里执行，生产只发布构建生成的 `dist/`。
+
+旧“日结”项目归档于 `D:\Sciences\common\_archive\日结-20261030`，保留历史代码、数据和报告，只供查阅。原 WorkBuddy 应用关联已迁入主项目的本机配置，应用、域名和云数据库沿用原来的；配置与迁移备份由 Git 忽略。其他开发者直接使用自己克隆的 `DailyReview`，无需拥有上述归档路径。具体约定见 [AGENTS.md](AGENTS.md)。
+
+原 `D:\Sciences\common\日结` 路径因旧会话占用而保留迁移说明，没有活动源码；WorkBuddy 中原空间已标记“日结（已归档，仅查历史）”，用于查看旧对话。继续开发请选择 **DailyReview** 空间。
+
 ## 已有功能
 
 - 可重命名空间、知识库和成员文档；每份文档用日期大标题组织每日记录。
