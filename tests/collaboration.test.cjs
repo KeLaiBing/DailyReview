@@ -28,16 +28,12 @@ test('date headings use the chosen day',()=>{
 function insertTemplate(editorHtml,templateHtml,title){
   const dom=new JSDOM('<div id="editor" contenteditable="true">'+editorHtml+'</div>');
   const {document}=dom.window,editor=document.getElementById('editor');
-  const existing=[...editor.querySelectorAll('h1')].find(h=>h.textContent.trim()===title);
-  const range=document.createRange();
-  if(existing){range.setStartAfter(existing);range.collapse(true);}
-  else{range.setStart(editor,editor.childNodes.length);range.collapse(true);}
-  range.insertNode(buildTemplateInsertion(document,templateHtml,title,Boolean(existing)));
+  editor.prepend(buildTemplateInsertion(document,templateHtml,title));
   const result=editor.innerHTML;dom.window.close();return result;
 }
-test('template without a heading gains the chosen day heading at the document end',()=>{
+test('template without a heading gains the chosen day heading at the document start',()=>{
   const html=insertTemplate('<h1>日期：2026.10.29</h1><p>昨天</p>','<p>任务目标：</p><p>今日总结：</p>','日期：2026.10.30');
-  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p><p>今日总结：<\/p><p><br><\/p>$/);
+  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p><p>今日总结：<\/p><p><br><\/p><h1>日期：2026\.10\.29/);
   assert.equal((html.match(/日期：2026\.10\.30/g)||[]).length,1);
 });
 test('stale saved date headings are replaced by the chosen day instead of lingering',()=>{
@@ -46,10 +42,11 @@ test('stale saved date headings are replaced by the chosen day instead of linger
   assert.equal((html.match(/<h1>/g)||[]).length,1);
   assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p>/);
 });
-test('an existing day heading is reused without duplication and content lands after it',()=>{
-  const html=insertTemplate('<h1>日期：2026.10.30</h1><p>已有内容</p>','<h1>日期：2026.10.01</h1><p>任务目标：</p>','日期：2026.10.30');
-  assert.equal((html.match(/日期：2026\.10\.30/g)||[]).length,1);
-  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p><p><br><\/p><p>已有内容<\/p>/);
+test('same-date templates still prepend an independent heading',()=>{
+  const html=insertTemplate('<h1>日期：2026.10.30</h1><p>已有内容</p>','<p>任务目标：</p>','日期：2026.10.30');
+  assert.equal((html.match(/<h1>/g)||[]).length,2);
+  assert.match(html,/^<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p>/);
+  assert.ok(html.endsWith('<p>已有内容</p>'));
 });
 test('non-date headings inside a template become subsections beneath the day heading',()=>{
   const html=insertTemplate('<p><br></p>','<h1>我的复盘</h1><p>任务目标：</p>','日期：2026.10.30');

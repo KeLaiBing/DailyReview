@@ -12,8 +12,10 @@
 | `shared_templates` | id TEXT PK, owner_id TEXT, name TEXT（1..80）, html TEXT, created BIGINT | 本人 CRUD |
 | `shared_comment_threads` | id TEXT PK, document_id TEXT FK, owner_id TEXT, quote TEXT（1..10000）, start_offset/end_offset INT, prefix/suffix TEXT, body TEXT（1..4000）, created BIGINT, deleted_at BIGINT NULL | 公开读；本人 INSERT；修改/删除仅走受限 RPC |
 | `shared_comment_replies` | id TEXT PK, thread_id TEXT FK, owner_id TEXT, body TEXT（1..4000）, created BIGINT, deleted_at BIGINT NULL | 同上 |
-| `shared_daily_reviews` | (document_id TEXT, review_date DATE) PK, source_text TEXT, source_rev INT, review JSONB, model TEXT, reviewer_id TEXT, updated BIGINT | 公开读；仅受限 RPC 保存 |
-| `shared_quality_days` | (document_id TEXT, review_date DATE) PK, criteria TEXT[], awarded_at BIGINT | 公开读；仅 RPC 派生写入 |
+| `shared_daily_reviews`（旧版保留） | (document_id TEXT, review_date DATE) PK, source_text TEXT, source_rev INT, review JSONB, model TEXT, reviewer_id TEXT, updated BIGINT | 公开读；仅受限 RPC 保存 |
+| `shared_quality_days`（旧版保留） | (document_id TEXT, review_date DATE) PK, criteria TEXT[], awarded_at BIGINT | 公开读；仅 RPC 派生写入 |
+
+当前版本还依赖 `shared_section_reviews`（document_id + section_id 主键，heading + 原点评字段）与 `shared_section_quality`（document_id + section_id 主键，review_date/criteria/awarded_at）。两表公开读，仅新 RPC 写；详见下方 005 契约。
 
 所有表启用 RLS。`auth.uid()` 为 TEXT；普通新记录 owner_id 默认取它。原共享文档/设置允许 `COALESCE(auth.uid(),'shared')` 作为旧数据默认值，但写入策略必须校验原生认证身份。模板不可公开读取；profiles 只存显示名，不保存手机号。
 
@@ -44,3 +46,14 @@ SDK `sendOtp({phone})` 返回 verificationId/isExistingUser；`verifyOtp({phone,
 权限测试必须使用真实数据库 anon/authenticated 角色，合成身份仅在回滚事务内使用。覆盖匿名调用、直接表写入、陈旧版本、无效日期、字符串或小数分数、缺失或不匹配证据、A/B 点评归属与同日幂等。生产记录不写入仓库。
 
 **信任边界：** 该原生 SDK 提供浏览器调用模型；数据库验证提交结构、身份、版本、引文及奖章规则，但无法独立证明分数一定来自指定模型，也不重新从 HTML 提取原文。因此这是非对抗场景的鼓励机制，不应用作奖金、考核或防作弊认证。未来如需可信评审，应迁移至受控云函数：服务端读取日结、调用模型并直接保存；不能通过前端隐藏密钥或隐藏按钮解决。
+
+
+## 按大标题点评（005 / v0.4.0）
+
+`005-heading-reviews.sql` 是单条原子 `DO`，可完整交给 WorkBuddy `db_exec_sql` 的 migrate 模式；失败整条回滚。新增 `shared_section_reviews` 与 `shared_section_quality`，主键均为 `(document_id, section_id)`。旧表保留，已有记录用 `date:YYYY-MM-DD` 作为兼容 ID 复制；旧保存 RPC 返回刷新提示，避免旧页面写入不再使用的表。新表沿用公开读、登录用户只通过 RPC 写的权限。
+
+当前页面调用 `shared_save_section_review(p_document_id,p_section_id,p_heading,p_date,p_source_rev,p_source_text,p_review,p_model)`。它检查登录、版本、已保存 HTML 中存在对应 H1 ID、评分/原文证据，允许历史日期；统计日期在第一次点评后固定。标题身份存在 H1 的 `data-journal-id` 中，存储加载保留；外部粘贴与保存模板会去掉身份，副本取得新 ID。唯一日期的旧 H1 能关联迁移记录；有歧义的同日多个旧 H1 不擅自关联某一篇，历史记录仍保留。
+
+新版 `review.format_version=2` 标记简评提示版本，旧长评不会阻止生成简评。同篇/同文字/同模型/同提示版本复用结果，切换模型或编辑内容更新本篇，已获勋章保留。个人统计读取所属成员全部文档，每篇最新点评计算平均分和优质率；勋章仍按统计日期合并，同日同类型只计一次，不以篇数冒充天数。上述旧版 today-only 契约由此节替代，模型调用和身份信任边界不变。
+
+云端回归验证脚本为 `tests/cloud-section-reviews.sql`（单条 DO）。仅管理员执行，内部切换真实 authenticated/anon 角色，合成数据以异常子事务全部回滚；不上传到静态站点。覆盖同日独立篇目、历史日期、幂等、换模型、提示版本升级、日期锁定、陈旧版本、缺失标题及写入权限。

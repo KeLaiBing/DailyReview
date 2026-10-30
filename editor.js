@@ -59,7 +59,7 @@ async function openDoc(doc) {
   current = doc; selectedRange = null; hoverBlock = null; menuBlock = null; activeCell = null;
   closeMenus(); $('insertPlus').classList.remove('visible');
   $('docTitle').value = doc.title; $('crumbTitle').textContent = doc.title || '无标题文档';
-  editor.innerHTML = cleanHTML(doc.html || '<p><br></p>'); doc.html=editor.innerHTML;
+  editor.innerHTML = cleanHTML(doc.html || '<p><br></p>',true); doc.html=editor.innerHTML;
   $('modified').textContent = new Date(doc.updated).toLocaleDateString('zh-CN') + ' 修改';
   $('saveStatus').textContent = savedLabel(); $('scrollArea').scrollTop = 0;
   renderList(); renderOutline(); window.Collaboration?.documentChanged();window.dispatchEvent(new Event('journal-document-changed'));
@@ -75,11 +75,10 @@ function addDay() {
   if(!requireEdit()) return;
   if(!current) return;
   const title = '日期：' + today().replaceAll('-','.');
-  const existing = [...editor.querySelectorAll('h1')].find(h => h.textContent.trim() === title);
-  if(existing) { existing.scrollIntoView({block:'center'}); setCaret(existing.nextElementSibling || existing); return; }
-  const range = document.createRange(); range.selectNodeContents(editor); range.collapse(true);
-  insertHTML('<h1>'+title+'</h1><p><br></p>',range);
-  const heading = editor.querySelector('h1'); heading.scrollIntoView({block:'center'}); setCaret(heading.nextElementSibling || heading);
+  const fragment=JournalCore.buildTemplateInsertion(document,'',title),heading=fragment.firstChild;
+  heading.dataset.journalId=newId();heading.dataset.journalDate=today();
+  editor.prepend(fragment);changed();renderOutline();
+  heading.scrollIntoView({block:'center'});setCaret(heading.nextElementSibling || heading);
 }
 $('addDay').onclick = addDay;
 function renderOutline() {
@@ -224,16 +223,21 @@ async function insertImages(files, context) {
 $('imagePicker').onchange = async e => { const files = [...e.target.files], context = pickerContext; e.target.value=''; if(context) await insertImages(files,context); };
 // Only allow document formatting from rich clipboard HTML. Strip executable
 // content, event handlers and external image URLs; clipboard image files use data URLs.
-function cleanHTML(html) {
+function cleanHTML(html, preserveJournalIds=false) {
   const source = new DOMParser().parseFromString(html,'text/html');
   source.querySelectorAll('script,style,iframe,object,embed,svg,math,form,input,button,link,meta').forEach(n => n.remove());
   const allowed = new Set('P DIV BR SPAN B STRONG I EM U S STRIKE MARK A H1 H2 H3 BLOCKQUOTE UL OL LI TABLE TBODY THEAD TR TD TH IMG HR'.split(' '));
   [...source.body.querySelectorAll('*')].reverse().forEach(el => {
     if (!allowed.has(el.tagName)) { el.replaceWith(...el.childNodes); return; }
     const src = el.getAttribute('src'), href = el.getAttribute('href'), todo=el.classList.contains('todo'), done=el.dataset.done;
+    const journalId=el.dataset.journalId,journalDate=el.dataset.journalDate;
     const spans={colspan:el.getAttribute('colspan'),rowspan:el.getAttribute('rowspan')};
     const styles={}; ['color','background-color','font-weight','font-style','text-decoration','text-align'].forEach(k=>{const v=el.style.getPropertyValue(k); if(v && !/url|expression|var\(/i.test(v)) styles[k]=v;});
     [...el.attributes].forEach(a => el.removeAttribute(a.name));
+    if(preserveJournalIds && el.tagName==='H1'){
+      if(/^[a-zA-Z0-9:_-]{1,100}$/.test(journalId||''))el.dataset.journalId=journalId;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(journalDate||''))el.dataset.journalDate=journalDate;
+    }
     if(todo && ['P','DIV','LI'].includes(el.tagName)) {el.className='todo';el.dataset.done=done==='true'?'true':'false';}
     if(['TD','TH'].includes(el.tagName)) Object.entries(spans).forEach(([k,v])=>{if(/^[1-9][0-9]?$/.test(v||''))el.setAttribute(k,v);});
     Object.entries(styles).forEach(([k,v])=>el.style.setProperty(k,v));
@@ -362,7 +366,7 @@ async function sync() {
       const latest=await api('/api/documents/'+active.id);
       if(savedRevision!==revision || conflict || current?.id!==latest.id) return;
       versions.set(latest.id,latest.rev); current=latest;
-      $('docTitle').value=latest.title; editor.innerHTML=cleanHTML(latest.html || '<p><br></p>'); latest.html=editor.innerHTML; window.Collaboration?.refreshHighlights();
+      $('docTitle').value=latest.title; editor.innerHTML=cleanHTML(latest.html || '<p><br></p>',true); latest.html=editor.innerHTML; window.Collaboration?.refreshHighlights();
       $('crumbTitle').textContent=latest.title; $('modified').textContent='已同步其他人的修改'; renderOutline();window.Collaboration?.documentChanged();
     }
     for(const item of remote) {

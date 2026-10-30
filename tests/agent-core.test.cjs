@@ -81,11 +81,22 @@ test('model picker lists text models in catalogue order and prefers hunyuan-chat
   assert.equal(core.defaultModelId([list[2],list[4]]),'alpha-text');
   assert.equal(core.defaultModelId([]),null);assert.equal(core.defaultModelId(null),null);
 });
-test('ordinary headings do not truncate a day and member IDs never come from the reviewer or creator',()=>{
+test('second-level headings do not truncate a day and member IDs never come from the reviewer or creator',()=>{
   withEditor(require('./daily-review-sample.cjs')('2026-10-30'),editor=>{
     const section=core.daily(editor,'2026-10-30');assert.match(section.text,/明天9点到10点/);assert.doesNotMatch(section.text,/NEIGHBOR_ONLY|FUTURE_ONLY/);
   });
   const docs=[{id:'a',member_id:'A',owner_id:'B'},{id:'a2',member_id:'A'},{id:'b',member_id:'B'},{id:'old',owner_id:'A'}];
   assert.deepEqual(core.memberDocumentIds(docs[0],docs),['a','a2']);
   assert.deepEqual(core.memberDocumentIds(docs[3],docs),['old']);
+});
+
+test('every H1 bounds a section, IDs survive rename and summaries deduplicate latest reviews',()=>{
+ withEditor('<h1>任意标题</h1><p>第一段</p><h2>子标题</h2><p>延续</p><h1>任意标题</h1><p>第二段</p>',e=>{
+  let n=0;core.identify(e,()=>String(++n));const [a,b]=core.sections(e);
+  assert.match(core.section(e,a.id).text,/延续/);assert.doesNotMatch(core.section(e,a.id).text,/第二段/);
+  a.heading.textContent='换名';assert.equal(core.sections(e)[0].id,a.id);assert.notEqual(a.id,b.id);
+ });
+ const base={document_id:'doc',section_id:'one',source_text:'完成三项测试',updated:1,review:valid([1,1,1])};
+ const stats=core.statistics([base,{...base,updated:2,review:valid()}, {...base,section_id:'two',review:valid([3,3,3])}]);
+ assert.deepEqual(stats,{count:2,average:70,qualifiedRate:50});
 });

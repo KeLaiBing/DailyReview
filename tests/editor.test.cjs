@@ -24,35 +24,35 @@ function setToday(w,$){$('editor').querySelector('h1').textContent='日期：'+w
 test('reviewing another member awards that document once and survives reload',async()=>{
  const {dom,w,$}=await app();try{
   $('docList').querySelectorAll('.doc-link')[1].click();await tick();setToday(w,$);
-  await $('reviewToday').onclick();await tick();
-  assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
-  const review=w.__fixture.rows.shared_daily_reviews[0];assert.equal(review.document_id,'doc-b');assert.equal(review.reviewer_id,'user-a');
-  assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.match($('badgeCount').textContent,/3 枚/);assert.match($('badgeOwner').textContent,/小周/);
-  await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_quality_days.length,1);
+  await $('startDailyReview').onclick();await tick();
+  assert.equal(w.__fixture.rows.shared_section_reviews.length,1,$('reviewStatus').textContent);
+  const review=w.__fixture.rows.shared_section_reviews[0];assert.equal(review.document_id,'doc-b');assert.equal(review.reviewer_id,'user-a');
+  assert.equal(w.__fixture.rows.shared_section_quality.length,1);assert.match($('badgeCount').textContent,/3 枚/);assert.match($('badgeOwner').textContent,/小周/);
+  await $('startDailyReview').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_section_quality.length,1);
   await w.__fixture.setUser('user-b');await tick();await w.JournalAgent.loadRemote();assert.match($('dailyReviewResult').textContent,/80/);assert.match($('qualityDayCount').textContent,/1 天/);
  }finally{dom.window.close();}
 });
 test('guest review requires login; invalid model output and network failures award nothing',async()=>{
  const {dom,w,$}=await app(true);try{
-  await $('reviewToday').onclick();assert.ok($('authDialog').open);assert.equal(w.__fixture.mock.modelCalls,0);
+  await $('startDailyReview').onclick();assert.ok($('authDialog').open);assert.equal(w.__fixture.mock.modelCalls,0);
   await w.__fixture.setUser('user-a');await tick();setToday(w,$);
-  w.__fixture.mock.review='not json';await $('reviewToday').onclick();assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);
+  w.__fixture.mock.review='not json';await $('startDailyReview').onclick();assert.equal(w.__fixture.rows.shared_section_reviews.length,0);
   assert.match($('reviewStatus').textContent,/未完成/);
-  w.__fixture.mock.modelError=true;await $('reviewToday').onclick();assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+  w.__fixture.mock.modelError=true;await $('startDailyReview').onclick();assert.equal(w.__fixture.rows.shared_section_quality.length,0);
  }finally{dom.window.close();}
 });
 test('save retry persists validated result without spending another model call',async()=>{
  const {dom,w,$}=await app();try{
-  setToday(w,$);w.__fixture.mock.saveError=true;await $('reviewToday').onclick();assert.equal(w.__fixture.rows.shared_quality_days.length,0);assert.equal($('retryReviewSave').hidden,false);
-  w.__fixture.mock.saveError=false;await $('retryReviewSave').onclick();assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.equal(w.__fixture.mock.modelCalls,1);
+  setToday(w,$);w.__fixture.mock.saveError=true;await $('startDailyReview').onclick();assert.equal(w.__fixture.rows.shared_section_quality.length,0);assert.equal($('retryReviewSave').hidden,false);
+  w.__fixture.mock.saveError=false;await $('retryReviewSave').onclick();assert.equal(w.__fixture.rows.shared_section_quality.length,1);assert.equal(w.__fixture.mock.modelCalls,1);
  }finally{dom.window.close();}
 });
 test('switching documents while inference runs discards the old response',async()=>{
  const {dom,w,$}=await app();try{
   setToday(w,$);let release;w.__fixture.mock.modelGate=new Promise(r=>release=r);
-  const pending=$('reviewToday').onclick();await tick();assert.equal(w.__fixture.mock.modelCalls,1);
+  const pending=$('startDailyReview').onclick();await tick();assert.equal(w.__fixture.mock.modelCalls,1);
   $('docList').querySelectorAll('.doc-link')[1].click();await tick();release();await pending;
-  assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+  assert.equal(w.__fixture.rows.shared_section_reviews.length,0);assert.equal(w.__fixture.rows.shared_section_quality.length,0);
   assert.match($('reviewTarget').textContent,/小周/);
  }finally{dom.window.close();}
 });
@@ -60,16 +60,16 @@ test('edited text or an expired session discards an in-flight review',async()=>{
  for(const expire of [false,true]){
   const {dom,w,$}=await app();try{
    setToday(w,$);let release;w.__fixture.mock.modelGate=new Promise(r=>release=r);
-   const pending=$('reviewToday').onclick();await tick();
+   const pending=$('startDailyReview').onclick();await tick();
    if(expire){await w.__fixture.setUser(null);await tick();}else $('editor').querySelector('p').textContent='已经改写的日结正文';
-   release();await pending;assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+   release();await pending;assert.equal(w.__fixture.rows.shared_section_reviews.length,0);assert.equal(w.__fixture.rows.shared_section_quality.length,0);
   }finally{dom.window.close();}
  }
 });
 test('rapid repeated review clicks start only one inference',async()=>{
  const {dom,w,$}=await app();try{
-  setToday(w,$);await Promise.all([$('reviewToday').onclick(),$('reviewToday').onclick()]);
-  assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_quality_days.length,1);
+  setToday(w,$);await Promise.all([$('startDailyReview').onclick(),$('startDailyReview').onclick()]);
+  assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_section_quality.length,1);
  }finally{dom.window.close();}
 });
 test('guest can read but cannot mutate via editor controls, todo or paste',async()=>{
@@ -93,7 +93,7 @@ test('selected template retains tables, images and todos; inserts a chosen daily
     assert.equal(w.__fixture.rows.shared_templates.length,1);
     $('templateDate').value='2026-11-02';$('templateList').querySelector('button').click();await tick();
     assert.equal([...$('editor').querySelectorAll('h1')].filter(h=>h.textContent==='日期：2026.11.02').length,1);
-    assert.ok($('editor').querySelector('h1').textContent.includes('2026.10.30'));
+    assert.ok($('editor').querySelector('h1').textContent.includes('2026.11.02'));
     assert.ok(w.__fixture.rows.shared_documents[0].html.includes('2026.11.02'));
   }finally{dom.window.close();}
 });
@@ -166,7 +166,7 @@ test('member badges aggregate all owned documents and days but never other membe
   const {dom,w,$}=await app();try{
     const rows=w.__fixture.rows;
     rows.shared_documents.push({id:'doc-a2',member_id:'user-a',owner_id:'user-b'});
-    rows.shared_quality_days.push(
+    rows.shared_section_quality.push(
       {document_id:'doc-a',review_date:'2026-10-27',criteria:['specificity','action']},
       {document_id:'doc-a2',review_date:'2026-10-27',criteria:['specificity','reflection']},
       {document_id:'doc-a2',review_date:'2026-10-28',criteria:['specificity']},
@@ -184,13 +184,14 @@ test('member badges aggregate all owned documents and days but never other membe
 test('switching native models re-evaluates one day without duplicating its badges',async()=>{
   const {dom,w,$}=await app();try{
     $('editor').innerHTML=require('./daily-review-sample.cjs')(w.JournalAgentCore.shanghaiDate());
-    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);
+    w.JournalAgent.context();$('reviewSection').selectedIndex=1;$('reviewSection').onchange();
+    await $('startDailyReview').onclick();assert.equal(w.__fixture.mock.modelCalls,1);
     assert.doesNotMatch(w.__fixture.mock.lastRequest.messages[1].content,/NEIGHBOR_ONLY|FUTURE_ONLY/);
     assert.match(w.__fixture.mock.lastRequest.messages[1].content,/明天9点到10点/);
-    $('reviewModel').value='fixture-second';$('reviewModel').onchange();await $('reviewToday').onclick();
-    assert.equal(w.__fixture.mock.modelCalls,2);assert.equal(w.__fixture.rows.shared_daily_reviews[0].model,'fixture-second');
-    assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.match($('badgeCount').textContent,/3 枚/);
-    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,2);
+    $('reviewModel').value='fixture-second';$('reviewModel').onchange();await $('startDailyReview').onclick();
+    assert.equal(w.__fixture.mock.modelCalls,2);assert.equal(w.__fixture.rows.shared_section_reviews[0].model,'fixture-second');
+    assert.equal(w.__fixture.rows.shared_section_quality.length,1);assert.match($('badgeCount').textContent,/3 枚/);
+    await $('startDailyReview').onclick();assert.equal(w.__fixture.mock.modelCalls,2);
   }finally{dom.window.close();}
 });
 test('API preferences survive reopening, keys stay out of storage and are cleared on account switch',async()=>{
@@ -209,23 +210,23 @@ test('API preferences survive reopening, keys stay out of storage and are cleare
 test('custom API review saves validated output; failures never fall back or award badges',async()=>{
   const {dom,w,$}=await app();try{
     setToday(w,$);$('modelSettingsButton').click();await tick();$('modelProvider').value='api';$('apiBaseUrl').value='https://sample.invalid/v1';$('apiModel').value='sample';$('apiKey').value='test-only-secret';submit(w,$('modelSettingsForm'));
-    w.fetch=async()=>({ok:false,status:401});await $('reviewToday').onclick();
-    assert.equal(w.__fixture.mock.modelCalls,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);assert.match($('reviewStatus').textContent,/401/);
+    w.fetch=async()=>({ok:false,status:401});await $('startDailyReview').onclick();
+    assert.equal(w.__fixture.mock.modelCalls,0);assert.equal(w.__fixture.rows.shared_section_quality.length,0);assert.match($('reviewStatus').textContent,/401/);
     let request;
     w.fetch=async(url,options)=>{request=options;const source=JSON.parse(JSON.parse(options.body).messages[1].content).record;
       const review={summary:'API 测试',dimensions:Object.fromEntries(['specificity','reflection','action'].map(k=>[k,{score:4,reason:'测试依据',evidence:[source.split('\n')[0]]}])),suggestions:['明确下一步']};
       return {ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify(review)},finish_reason:'stop'}]})};};
-    await $('reviewToday').onclick();assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
+    await $('startDailyReview').onclick();assert.equal(w.__fixture.rows.shared_section_reviews.length,1,$('reviewStatus').textContent);
     assert.equal(request.headers.Authorization,'Bearer test-only-secret');assert.equal(w.__fixture.mock.modelCalls,0);
     assert.ok(!JSON.stringify(w.__fixture.rows).includes('test-only-secret'));
   }finally{dom.window.close();}
 });
-test('template reuses equivalent dates and saves exactly one top-level date heading',async()=>{
+test('template prepends a new independent heading even when dates match',async()=>{
   const {dom,w,$}=await app();try{
     $('editor').innerHTML='<h1>日期：2026年11月2日</h1><p>保留已有记录</p>';
     w.__fixture.rows.shared_templates.push({id:'template-test',owner_id:'user-a',name:'测试模板',created:1,html:'<h1>2020-1-1</h1><h1>任务</h1><table><tr><td>复盘内容</td></tr></table><p class="todo" data-done="false">行动</p>'});
     $('templatesButton').click();await tick();$('templateDate').value='2026-11-02';$('templateList').querySelector('button').click();await tick();
-    assert.equal($('editor').querySelectorAll('h1').length,1);assert.ok($('editor').querySelector('h2'));
+    assert.equal($('editor').querySelectorAll('h1').length,2);assert.ok($('editor').querySelector('h2'));assert.equal($('editor').firstElementChild.textContent,'日期：2026.11.02');
     assert.match($('editor').textContent,/保留已有记录/);assert.doesNotMatch($('editor').textContent,/2020/);
     assert.equal(w.__fixture.rows.shared_documents[0].html,$('editor').innerHTML);
     assert.match($('outlineItems').textContent,/2026年11月2日/);
@@ -237,15 +238,15 @@ test('connection testing sends only a test sentence and no journal or cloud writ
     assert.match($('modelSettingsStatus').textContent,/连接成功/);
     assert.equal(w.__fixture.mock.lastRequest.messages[0].role,'system');
     assert.equal(w.__fixture.mock.lastRequest.messages[1].content,'连接测试，请只回复“连接成功”。');
-    assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+    assert.equal(w.__fixture.rows.shared_section_reviews.length,0);assert.equal(w.__fixture.rows.shared_section_quality.length,0);
   }finally{dom.window.close();}
 });
 test('changing the member during inference discards the result instead of awarding someone else',async()=>{
   const {dom,w,$}=await app();try{
     setToday(w,$);let release;w.__fixture.mock.modelGate=new Promise(r=>release=r);
-    const pending=$('reviewToday').onclick();await tick();
+    const pending=$('startDailyReview').onclick();await tick();
     $('documentMember').value='user-b';await $('documentMember').onchange();release();await pending;
-    assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+    assert.equal(w.__fixture.rows.shared_section_reviews.length,0);assert.equal(w.__fixture.rows.shared_section_quality.length,0);
     assert.match($('badgeOwner').textContent,/小周/);
   }finally{dom.window.close();}
 });
@@ -262,11 +263,95 @@ test('a real-style multiline evidence response completes review and saves only o
     const evidence='完成三项测试\n逐一复核结果';
     const review={summary:'跨行引文测试',dimensions:Object.fromEntries(['specificity','reflection','action'].map(k=>[k,{score:4,reason:'有明确记录',evidence:[evidence]}])),suggestions:['明天核对结果']};
     w.__fixture.mock.review=JSON.stringify(review).replaceAll('\\n','\n');
-    await $('reviewToday').onclick();
-    assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
-    assert.equal(w.__fixture.rows.shared_daily_reviews[0].review.dimensions.action.evidence[0],evidence);
+    await $('startDailyReview').onclick();
+    assert.equal(w.__fixture.rows.shared_section_reviews.length,1,$('reviewStatus').textContent);
+    assert.equal(w.__fixture.rows.shared_section_reviews[0].review.dimensions.action.evidence[0],evidence);
     assert.match($('dailyReviewResult').textContent,/跨行引文测试/);
     assert.match($('badgeCount').textContent,/3 枚/);
-    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_quality_days.length,1);
+    await $('startDailyReview').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_section_quality.length,1);
   }finally{dom.window.close();}
+});
+
+test('opening review panel does not infer; selected H1 is the only input even with duplicate labels',async()=>{
+ const {dom,w,$}=await app();try{
+  $('editor').innerHTML='<h1>今日复盘</h1><p>第一份独有标记 ALPHA</p><h1>今日复盘</h1><p>第二份独有标记 BETA</p>';
+  $('reviewToday').click();await tick();assert.equal(w.__fixture.mock.modelCalls,0);
+  assert.equal($('reviewSection').options.length,2);
+  $('reviewSection').selectedIndex=1;$('reviewSection').onchange();
+  await $('startDailyReview').onclick();
+  assert.match(w.__fixture.mock.lastRequest.messages[1].content,/BETA/);assert.doesNotMatch(w.__fixture.mock.lastRequest.messages[1].content,/ALPHA/);
+  const row=w.__fixture.rows.shared_section_reviews[0];assert.equal(row.section_id,$('editor').querySelectorAll('h1')[1].dataset.journalId);
+  assert.match($('reviewStatistics').textContent,/已点评 1 篇/);
+ }finally{dom.window.close();}
+});
+test('rename and reorder preserve selection and cached review; repeated date sections stay separate',async()=>{
+ const {dom,w,$}=await app();try{
+  $('editor').innerHTML='<h1>日期：2026.10.01</h1><p>第一份完整记录</p><h1>日期：2026.10.01</h1><p>第二份完整记录</p>';
+  await $('startDailyReview').onclick();const firstId=$('reviewSection').value;
+  assert.equal($('reviewDate').disabled,true);
+  const first=$('editor').firstElementChild,body=first.nextElementSibling;
+  first.textContent='改名后的第一份';$('editor').append(first,body);w.JournalAgent.context();
+  assert.equal($('reviewSection').value,firstId);assert.match($('reviewTarget').textContent,/改名/);
+  await $('startDailyReview').onclick();assert.equal(w.__fixture.mock.modelCalls,1);
+  $('reviewSection').selectedIndex=0;$('reviewSection').onchange();await $('startDailyReview').onclick();
+  assert.equal(w.__fixture.rows.shared_section_reviews.length,2);assert.match($('reviewStatistics').textContent,/已点评 2 篇/);
+  assert.match($('qualityDayCount').textContent,/1 天.*3 枚/);
+ }finally{dom.window.close();}
+});
+test('switching H1 during inference discards response and preserves the new target',async()=>{
+ const {dom,w,$}=await app();try{
+  $('editor').innerHTML='<h1>甲</h1><p>甲的记录</p><h1>乙</h1><p>乙的记录</p>';
+  let release;w.__fixture.mock.modelGate=new Promise(r=>release=r);
+  const pending=$('startDailyReview').onclick();await tick();
+  $('reviewSection').selectedIndex=1;$('reviewSection').onchange();release();await pending;
+  assert.equal(w.__fixture.rows.shared_section_reviews.length,0);assert.match($('reviewTarget').textContent,/乙/);
+ }finally{dom.window.close();}
+});
+test('statistical date supports history and survives title edits; sanitizer preserves stored IDs only',async()=>{
+ const {dom,w,$}=await app();try{
+  $('editor').innerHTML='<h1>实验复盘</h1><p>核对了三条测量记录</p>';
+  w.JournalAgent.show();$('reviewDate').value='2025-02-03';await $('startDailyReview').onclick();
+  assert.equal(w.__fixture.rows.shared_section_reviews[0].review_date,'2025-02-03');
+  const html=$('editor').innerHTML;
+  assert.match(w.eval('cleanHTML('+JSON.stringify(html)+',true)'),/data-journal-id=/);
+  assert.doesNotMatch(w.eval('cleanHTML('+JSON.stringify(html)+')'),/data-journal-id=/);
+  $('editor').querySelector('h1').textContent='随意改名';w.JournalAgent.context();await w.JournalAgent.loadRemote();
+  assert.equal($('reviewDate').value,'2025-02-03');assert.equal($('reviewDate').disabled,true);
+ }finally{dom.window.close();}
+});
+test('repeated template insertions prepend fresh H1 IDs and preserve old content',async()=>{
+ const {dom,w,$}=await app();try{
+  const old=$('editor').innerHTML;
+  w.__fixture.rows.shared_templates.push({id:'fresh',owner_id:'user-a',name:'新模板',created:1,html:'<p>新内容</p>'});
+  for(let i=0;i<2;i++){$('templatesButton').click();await tick();$('templateList').querySelector('button').click();await tick();}
+  const headings=[...$('editor').querySelectorAll('h1')];assert.equal(headings.length,3);
+  assert.equal(new Set(headings.map(h=>h.dataset.journalId)).size,3);assert.ok($('editor').innerHTML.endsWith(old));
+ }finally{dom.window.close();}
+});
+
+test('selecting a date heading launches its review inside comments without touching human threads',async()=>{
+ const {dom,w,$}=await app();try{
+  $('editor').innerHTML='<h1>日期：2026.10.30</h1><p>昨日独有 ALPHA</p><h1>日期：2026.10.31</h1><p>今日独有 BETA</p>';
+  select(w,$('editor').querySelectorAll('h1')[1]);await $('reviewSelection').onclick();
+  assert.equal($('commentsPanel').hidden,false);assert.ok($('commentsPanel').contains($('dailyAgent')));
+  assert.equal($('dailyAgent').hidden,false);assert.equal($('discussionArea').hidden,true);
+  assert.match(w.__fixture.mock.lastRequest.messages[1].content,/BETA/);assert.doesNotMatch(w.__fixture.mock.lastRequest.messages[1].content,/ALPHA/);
+  assert.equal(w.__fixture.rows.shared_comment_threads.length,0);assert.equal(w.__fixture.rows.shared_section_reviews.length,1);
+  $('showDiscussion').click();assert.equal($('discussionArea').hidden,false);assert.equal($('dailyAgent').hidden,true);
+  select(w,$('editor').querySelector('p'));$('commentSelection').click();assert.equal($('commentForm').hidden,false);assert.equal($('discussionArea').hidden,false);
+ }finally{dom.window.close();}
+});
+test('AI toolbar rejects body-only or cross-heading selections before spending a model call',async()=>{
+ const {dom,w,$}=await app();try{
+  select(w,$('editor').querySelector('p'));await $('reviewSelection').onclick();assert.equal(w.__fixture.mock.modelCalls,0);
+  select(w,$('editor'));await $('reviewSelection').onclick();assert.equal(w.__fixture.mock.modelCalls,0);
+ }finally{dom.window.close();}
+});
+test('old long reviews can become concise reviews without adding a second statistical row',async()=>{
+ const {dom,w,$}=await app();try{
+  await $('startDailyReview').onclick();const row=w.__fixture.rows.shared_section_reviews[0];delete row.review.format_version;
+  await w.JournalAgent.loadRemote();await $('startDailyReview').onclick();
+  assert.equal(w.__fixture.mock.modelCalls,2);assert.equal(w.__fixture.rows.shared_section_reviews.length,1);
+  assert.equal(w.__fixture.rows.shared_section_reviews[0].review.format_version,2);
+ }finally{dom.window.close();}
 });

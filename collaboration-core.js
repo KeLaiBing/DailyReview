@@ -24,14 +24,14 @@
   }
   // 构造模板插入片段：当天大标题由显式 DOM 节点生成，不经过 execCommand 的块级合并，
   // 避免标题被吞掉；模板里保存过的旧日期大标题一律移除，防止旧日期残留。
-  function buildTemplateInsertion(document, cleanedHtml, title, hasExisting) {
+  function buildTemplateInsertion(document, cleanedHtml, title) {
     const container=document.createElement('div'); container.innerHTML=cleanedHtml;
     [...container.querySelectorAll('h1')].forEach(h=>{
       if(dateOf(h.textContent))h.remove();
       else {const sub=document.createElement('h2');sub.append(...h.childNodes);h.replaceWith(sub);}
     });
     const fragment=document.createDocumentFragment();
-    if(!hasExisting){const heading=document.createElement('h1');heading.textContent=title;fragment.append(heading);}
+    const heading=document.createElement('h1');heading.textContent=title;fragment.append(heading);
     while(container.firstChild)fragment.append(container.firstChild);
     const tail=document.createElement('p');tail.append(document.createElement('br'));fragment.append(tail);
     return fragment;

@@ -166,17 +166,12 @@ window.Collaboration = (() => {
     if(!requireUser() || !current){toast('请先打开或新建成员文档');return;}
     if(!$('templateDate').reportValidity())return;
     const date=$('templateDate').value, title=JournalCore.dateTitle(date);
-    const matches=[...editor.querySelectorAll('h1')].filter(h=>JournalCore.dateOf(h.textContent)===date);
-    if(matches.length>1){toast('当天有多个大标题，请先合并后再使用模板');return;}
-    const existing=matches[0];
-    const range=document.createRange();
-    if(existing){range.setStartAfter(existing);range.collapse(true);}
-    else{range.setStart(editor,editor.childNodes.length);range.collapse(true);}
-    const fragment=JournalCore.buildTemplateInsertion(document,cleanHTML(template.html),title,Boolean(existing));
+    const fragment=JournalCore.buildTemplateInsertion(document,cleanHTML(template.html),title);
+    const heading=fragment.firstChild;
+    heading.dataset.journalId=newId();heading.dataset.journalDate=date;
     $('templateDialog').close();
     if(!requireEdit())return;
-    range.insertNode(fragment);
-    const heading=existing || [...editor.querySelectorAll('h1')].find(h=>h.textContent.trim()===title);
+    editor.prepend(fragment);
     if(heading)setCaret(heading.nextElementSibling||heading,true);
     selectedRange=capture();changed();renderOutline();
     heading?.scrollIntoView({block:'center'});toast('已插入 '+title+' 的模板内容');
@@ -194,7 +189,7 @@ window.Collaboration = (() => {
     });
   }
 
-  function panel(open=true) {$('commentsPanel').hidden=!open;document.body.classList.toggle('comments-open',open);}
+  function panel(open=true,mode='comments') {$('commentsPanel').hidden=!open;document.body.classList.toggle('comments-open',open);if(open)window.JournalAgent?.setView(mode);}
   $('commentsButton').onclick=()=>{panel($('commentsPanel').hidden);loadComments(true).catch(e=>toast(errorText(e)));};
   $('closeComments').onclick=()=>panel(false);
   $('cancelComment').onclick=()=>{commentDraft=null;$('commentForm').hidden=true;$('commentBody').value='';};
@@ -317,5 +312,5 @@ window.Collaboration = (() => {
   }
   editor.addEventListener('input',()=>{clearTimeout(highlightTimer);highlightTimer=setTimeout(refreshHighlights,250);});
   $('commentList').addEventListener('focusout',()=>setTimeout(()=>{if(!$('commentList').contains(document.activeElement))renderComments();},0));
-  return {get user(){return user;},get displayName(){return user?nameOf(user.id):'新成员';},get memberId(){return profiles.has(user?.id)?user.id:null;},nameOf,init,login,documentChanged,refreshHighlights};
+  return {get user(){return user;},get displayName(){return user?nameOf(user.id):'新成员';},get memberId(){return profiles.has(user?.id)?user.id:null;},nameOf,init,login,documentChanged,refreshHighlights,openComments:panel};
 })();

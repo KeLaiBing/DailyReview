@@ -39,29 +39,29 @@
     },
     signOut:async()=>{user=null;persistUser();events.forEach(f=>f('SIGNED_OUT'));return {data:null};}
   };
-  rows.shared_daily_reviews=[];rows.shared_quality_days=[];
+  rows.shared_section_reviews=[];rows.shared_section_quality=[];
   const mock={deleteError:false,modelCalls:0,modelError:false,saveError:false,modelGate:null,review:null};
   const rpc=async(name,args)=>{
     if(!user)return {error:{message:'authentication required'}};
-    if(name==='shared_save_daily_review'){
+    if(name==='shared_save_section_review'){
       if(mock.saveError)return {error:{message:'fixture save unavailable'}};
-      const {p_document_id:id,p_date:date,p_source_rev:rev,p_source_text:source,p_review:review,p_model:model}=args;
+      const {p_document_id:id,p_section_id:sectionId,p_heading:heading,p_date:date,p_source_rev:rev,p_source_text:source,p_review:review,p_model:model}=args;
       const doc=rows.shared_documents.find(d=>d.id===id);
       if(!doc||doc.rev!==rev)return {error:{message:'stale_document'}};
       const core=globalThis.JournalAgentCore;
-      if(date!==core.shanghaiDate())return {error:{message:'review_date must be today'}};
+
       try{core.validate(review,source);}catch(e){return {error:{message:e.message}};}
-      let row=rows.shared_daily_reviews.find(r=>r.document_id===id&&r.review_date===date);
-      if(!row||row.source_text!==source||row.model!==model){
-        const next={document_id:id,review_date:date,source_text:source,source_rev:rev,review,model,reviewer_id:user.id,updated:Date.now()};
-        if(row)Object.assign(row,next);else {row=next;rows.shared_daily_reviews.push(row);}
+      let row=rows.shared_section_reviews.find(r=>r.document_id===id&&r.section_id===sectionId);
+      if(!row||row.source_text!==source||row.model!==model||row.review.format_version!==review.format_version){
+        const next={document_id:id,section_id:sectionId,heading,review_date:date,source_text:source,source_rev:rev,review,model,reviewer_id:user.id,updated:Date.now()};
+        if(row)Object.assign(row,next);else {row=next;rows.shared_section_reviews.push(row);}
         const grade=core.grade(review);
-        if(grade.qualified){let day=rows.shared_quality_days.find(r=>r.document_id===id&&r.review_date===date);
+        if(grade.qualified){let day=rows.shared_section_quality.find(r=>r.document_id===id&&r.section_id===sectionId);
           if(day)day.criteria=[...new Set([...day.criteria,...grade.criteria])];
-          else rows.shared_quality_days.push({document_id:id,review_date:date,criteria:grade.criteria,awarded_at:Date.now()});
+          else rows.shared_section_quality.push({document_id:id,section_id:sectionId,review_date:date,criteria:grade.criteria,awarded_at:Date.now()});
         }
       }
-      const collection=core.collection(rows.shared_quality_days.filter(d=>d.document_id===id));
+      const collection=core.collection(rows.shared_section_quality.filter(d=>d.document_id===id));
       return {data:{review:row,qualified_days:collection.count,earned:collection.earned}};
     }
     const {p_kind,p_id}=args;
