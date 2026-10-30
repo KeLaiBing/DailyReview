@@ -25,6 +25,29 @@ test('model results require strict scores, non-template exact evidence and compl
   assert.throws(()=>core.parse('{"summary":','完成三项测试'));
   assert.equal(core.delta({choices:[{delta:{reasoning_content:'private'}}]}),'');
 });
+test('raw control characters inside model JSON strings are normalized without changing evidence',()=>{
+  const source='完成三项测试\n记录结果\t核对\r\n下一步';
+  const review=valid();review.dimensions.specificity.evidence=[source];
+  const json=JSON.stringify(review,null,2);
+  const raw=json.replaceAll('\\n','\n').replaceAll('\\r','\r').replaceAll('\\t','\t');
+  assert.deepEqual(core.parse(raw,source),review);
+  assert.deepEqual(core.parse('```json\n'+raw+'\n```',source),review);
+  assert.deepEqual(core.parse(json,source),review);
+});
+test('JSON normalization preserves escaped quotes and slashes and never fabricates truncated or false evidence',()=>{
+  const source='完成三项测试\n结果包含 "引号" 和 C:\\test\\new，{大括号}';
+  const review=valid();review.dimensions.action.evidence=[source];
+  const raw=JSON.stringify(review).replace('测试\\n结果','测试\n结果');
+  assert.deepEqual(core.parse(raw,source),review);
+  assert.throws(()=>core.parse(raw.slice(0,-2),source));
+  assert.throws(()=>core.parse(raw,'完全不同的文字'));
+});
+test('a single complete JSON review may have explanatory wrappers, but ambiguous or truncated objects fail',()=>{
+  const json=JSON.stringify(valid());
+  assert.deepEqual(core.parse('以下是点评结果：\n```json\n'+json+'\n```\n供你参考。','完成三项测试'),valid());
+  assert.throws(()=>core.parse(json+'\n'+json,'完成三项测试'));
+  assert.throws(()=>core.parse('点评：'+json.slice(0,-1),'完成三项测试'));
+});
 test('quality requires all dimensions >=3 and score >=80; milestones count unique dates',()=>{
   assert.deepEqual(core.grade(valid([5,5,2])),{score:80,qualified:false,criteria:[]});
   assert.deepEqual(core.grade(valid([5,4,3])),{score:80,qualified:true,criteria:['specificity','reflection']});

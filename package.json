@@ -1,6 +1,6 @@
 {
   "name": "feedback-journal",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "反馈机：多人共享日结文档",
   "engines": {

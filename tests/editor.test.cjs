@@ -256,3 +256,17 @@ test('remote member changes update the selector and badge owner on synchronizati
     assert.equal($('documentMember').value,'user-b');assert.match($('badgeOwner').textContent,/小周/);
   }finally{dom.window.close();}
 });
+test('a real-style multiline evidence response completes review and saves only once',async()=>{
+  const {dom,w,$}=await app();try{
+    setToday(w,$);$('editor').innerHTML+='<p>完成三项测试<br>逐一复核结果</p>';
+    const evidence='完成三项测试\n逐一复核结果';
+    const review={summary:'跨行引文测试',dimensions:Object.fromEntries(['specificity','reflection','action'].map(k=>[k,{score:4,reason:'有明确记录',evidence:[evidence]}])),suggestions:['明天核对结果']};
+    w.__fixture.mock.review=JSON.stringify(review).replaceAll('\\n','\n');
+    await $('reviewToday').onclick();
+    assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
+    assert.equal(w.__fixture.rows.shared_daily_reviews[0].review.dimensions.action.evidence[0],evidence);
+    assert.match($('dailyReviewResult').textContent,/跨行引文测试/);
+    assert.match($('badgeCount').textContent,/3 枚/);
+    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_quality_days.length,1);
+  }finally{dom.window.close();}
+});
