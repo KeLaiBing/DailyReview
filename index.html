@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>反馈机</title><link rel="stylesheet" href="editor.css"></head>
+<body class="read-only">
+<!-- 游客只读；写入由 WorkBuddy 身份认证及数据库 RLS 双重校验。 -->
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand"><span class="brand-icon">▤</span> 反馈机 <button id="closeSide" class="icon" title="收起侧栏">«</button></div>
+    <div class="workspace"><span class="workspace-icon">日</span><div><input id="workspaceName" class="name-input" aria-label="空间名称" value="我的日结" maxlength="80"><small id="spaceMode">共享空间</small></div></div>
+    <label class="search"><span>⌕</span><input id="search" placeholder="搜索文档" aria-label="搜索文档"></label>
+    <div class="section-label">知识库 <button id="newDoc" class="icon" title="新建成员文档" aria-label="新建成员文档">＋</button></div>
+    <div class="folder">⌄ <span>📚</span><input id="folderName" class="name-input" aria-label="知识库名称" value="日常记录" maxlength="80"></div>
+    <nav id="docList" aria-label="文档列表"></nav>
+    <div class="sidebar-foot" id="storageHint">正在连接共享空间…</div>
+  </aside>
+  <main>
+    <header class="topbar"><button id="openSide" class="icon" title="展开侧栏">☰</button><div class="breadcrumbs"><b id="crumbWorkspace">我的日结</b> <span>›</span> <b id="crumbFolder">日常记录</b> <span>›</span> <b id="crumbTitle"></b><small id="saveStatus" role="status">正在打开…</small></div><div class="header-actions"><button id="templatesButton">日结模板</button><button id="commentsButton">评论 <span id="commentCount">0</span></button><button id="accountButton" class="primary">登录 / 注册</button></div></header>
+    <div id="accessBanner">游客模式 · 登录后可编辑文档、保存模板和参与评论。<button id="loginLink">登录 / 注册</button><button id="retrySave" hidden>重试保存</button></div>
+    <div id="conflictBar" hidden>此文档已有其他人的新修改，你的内容仍保留。<button id="saveCopy">将我的内容另存为副本</button><button id="loadLatest">读取最新版本</button></div><div class="document-layout">
+      <nav id="outline" aria-label="文档目录"><div class="outline-label">文档目录 <button id="addDay" title="插入当天的日结大标题" class="icon" aria-label="新增当天日结">＋</button></div><div id="outlineItems"></div></nav>
+      <div id="scrollArea">
+        <article id="paper">
+          <input id="docTitle" aria-label="文档标题" placeholder="无标题文档">
+          <div class="doc-meta"><span class="avatar">我</span><span>成员文档</span><span class="meta-divider"></span><span id="modified"></span></div>
+          <div id="editor" contenteditable="false" role="textbox" aria-label="文档正文" aria-multiline="true" spellcheck="false"></div>
+        </article>
+        <button id="insertPlus" class="icon" aria-label="插入内容" title="插入内容">＋</button>
+      </div>
+      <aside id="commentsPanel" hidden aria-label="文档评论"><div class="panel-heading"><b>评论</b><button id="closeComments" class="icon" aria-label="关闭评论">×</button></div><p class="muted">选中正文后点击“评论”，与成员讨论具体内容。</p><form id="commentForm" hidden><blockquote id="commentQuote"></blockquote><textarea id="commentBody" aria-label="评论内容" placeholder="说说你的想法…" maxlength="4000" required></textarea><div class="form-actions"><button type="button" id="cancelComment">取消</button><button type="submit" class="primary">发布评论</button></div></form><div id="commentList"></div></aside>
+    </div>
+  </main>
+</div>
+<div id="insertMenu" class="popover" hidden><div class="menu-label">插入内容</div><button data-insert="day">日 <span>当天日结大标题</span></button><button data-insert="p">T <span>正文</span></button><button data-insert="h1">H1 <span>一级标题</span></button><button data-insert="h2">H2 <span>二级标题</span></button><button data-insert="h3">H3 <span>三级标题</span></button><button data-insert="todo">☑ <span>待办事项</span></button><button data-insert="ul">• <span>无序列表</span></button><button data-insert="ol">1. <span>有序列表</span></button><button data-insert="blockquote">❝ <span>引用</span></button><button data-insert="table">▦ <span>表格 · 3 × 3</span></button><button data-insert="image">▧ <span>图片</span></button><button data-insert="hr">— <span>分割线</span></button></div>
+<div id="formatBar" class="popover" hidden><button data-cmd="bold" title="加粗"><b>B</b></button><button data-cmd="italic" title="斜体"><i>I</i></button><button data-cmd="underline" title="下划线"><u>U</u></button><button data-cmd="strikeThrough" title="删除线"><s>S</s></button><button data-cmd="hiliteColor" title="高亮">▰</button><button data-cmd="createLink" title="链接">↗</button><button data-format="p">正文</button><button data-format="h1">H1</button><button data-format="h2">H2</button><button data-format="h3">H3</button><button id="saveSelectionTemplate" data-action="template">存为模板</button><button id="commentSelection" data-action="comment">评论</button></div>
+<div id="tableBar" class="popover" hidden><button data-table="row">＋ 行</button><button data-table="col">＋ 列</button><button data-table="deleteRow">删除行</button><button data-table="deleteCol">删除列</button></div>
+<input id="imagePicker" type="file" accept="image/*" multiple hidden><div id="toast" role="status" hidden></div>
+<dialog id="authDialog" aria-labelledby="authTitle"><button class="dialog-close icon" data-close="authDialog" aria-label="关闭">×</button><h2 id="authTitle">加入反馈机</h2><p class="muted">手机号验证码登录，未注册的手机号将自动创建账号。</p><form id="authForm"><label>手机号<input id="authPhone" type="tel" autocomplete="tel-national" inputmode="tel" maxlength="11" pattern="1[0-9]{10}" required placeholder="11 位手机号"></label><label>验证码<div class="code-row"><input id="authCode" autocomplete="one-time-code" inputmode="numeric" maxlength="8" required placeholder="短信验证码"><button id="sendCode" type="button">获取验证码</button></div></label><p id="authError" role="alert" class="form-error"></p><button id="submitAuth" type="submit" class="primary wide">登录 / 注册</button></form></dialog>
+<dialog id="accountDialog" aria-labelledby="accountTitle"><button class="dialog-close icon" data-close="accountDialog" aria-label="关闭">×</button><h2 id="accountTitle">我的账号</h2><form id="profileForm"><label>评论显示名称<input id="displayName" maxlength="40" required placeholder="你的名字"></label><p class="muted">名称显示在评论和回复中。</p><button type="submit" class="primary">保存名称</button><button id="signOut" type="button">退出登录</button></form></dialog>
+<dialog id="templateDialog" aria-labelledby="templateTitle"><button class="dialog-close icon" data-close="templateDialog" aria-label="关闭">×</button><h2 id="templateTitle">我的日结模板</h2><p class="muted">在正文选中内容，点击“存为模板”。表格、图片和待办会一并保留。</p><form id="templateForm" hidden><label>模板名称<input id="templateName" maxlength="80" required placeholder="例如：每日复盘"></label><div id="templatePreview" class="rich-preview"></div><button class="primary" type="submit">保存选中内容</button></form><label class="template-date">日结日期<input id="templateDate" type="date" required></label><div id="templateList"></div></dialog>
+<script src="collaboration-core.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script src="editor.js"></script>
+<script src="comment-deletion.js"></script>
+<script src="collaboration.js"></script>
+</body></html>
