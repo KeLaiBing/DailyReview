@@ -24,7 +24,7 @@ window.Collaboration = (() => {
     $('accessBanner').firstChild.textContent=allowed?'已登录 · 成员可共同编辑，也可划词评论。':'游客模式 · 登录后可编辑文档、保存模板和参与评论。';
     $('loginLink').hidden=allowed;
     $('retrySave').hidden=!allowed || savedRevision===revision;
-    closeMenus(); renderList();
+    closeMenus(); renderList();window.dispatchEvent(new Event('journal-access-changed'));
   }
   async function refreshSession() {
     const generation=++authGeneration;

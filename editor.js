@@ -62,7 +62,7 @@ async function openDoc(doc) {
   editor.innerHTML = cleanHTML(doc.html || '<p><br></p>'); doc.html=editor.innerHTML;
   $('modified').textContent = new Date(doc.updated).toLocaleDateString('zh-CN') + ' 修改';
   $('saveStatus').textContent = savedLabel(); $('scrollArea').scrollTop = 0;
-  renderList(); renderOutline(); window.Collaboration?.documentChanged();
+  renderList(); renderOutline(); window.Collaboration?.documentChanged();window.dispatchEvent(new Event('journal-document-changed'));
 }
 async function newDoc(title) {
   if(!requireEdit()) return;

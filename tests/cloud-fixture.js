@@ -39,9 +39,32 @@
     },
     signOut:async()=>{user=null;persistUser();events.forEach(f=>f('SIGNED_OUT'));return {data:null};}
   };
-  const mock={deleteError:false};
-  const rpc=async(name,{p_kind,p_id})=>{
+  rows.shared_daily_reviews=[];rows.shared_quality_days=[];
+  const mock={deleteError:false,modelCalls:0,modelError:false,saveError:false,modelGate:null,review:null};
+  const rpc=async(name,args)=>{
     if(!user)return {error:{message:'authentication required'}};
+    if(name==='shared_save_daily_review'){
+      if(mock.saveError)return {error:{message:'fixture save unavailable'}};
+      const {p_document_id:id,p_date:date,p_source_rev:rev,p_source_text:source,p_review:review,p_model:model}=args;
+      const doc=rows.shared_documents.find(d=>d.id===id);
+      if(!doc||doc.rev!==rev)return {error:{message:'stale_document'}};
+      const core=globalThis.JournalAgentCore;
+      if(date!==core.shanghaiDate())return {error:{message:'review_date must be today'}};
+      try{core.validate(review,source);}catch(e){return {error:{message:e.message}};}
+      let row=rows.shared_daily_reviews.find(r=>r.document_id===id&&r.review_date===date);
+      if(!row||row.source_text!==source){
+        const next={document_id:id,review_date:date,source_text:source,source_rev:rev,review,model,reviewer_id:user.id,updated:Date.now()};
+        if(row)Object.assign(row,next);else {row=next;rows.shared_daily_reviews.push(row);}
+        const grade=core.grade(review);
+        if(grade.qualified){let day=rows.shared_quality_days.find(r=>r.document_id===id&&r.review_date===date);
+          if(day)day.criteria=[...new Set([...day.criteria,...grade.criteria])];
+          else rows.shared_quality_days.push({document_id:id,review_date:date,criteria:grade.criteria,awarded_at:Date.now()});
+        }
+      }
+      const collection=core.collection(rows.shared_quality_days.filter(d=>d.document_id===id));
+      return {data:{review:row,qualified_days:collection.count,earned:collection.earned}};
+    }
+    const {p_kind,p_id}=args;
     if(name!=='shared_delete_comment'||!['thread','reply'].includes(p_kind))return {error:{message:'invalid RPC'}};
     if(mock.deleteError)return {error:{message:'删除暂时失败'}};
     const list=p_kind==='thread'?rows.shared_comment_threads:rows.shared_comment_replies;
@@ -51,6 +74,14 @@
     if(p_kind==='thread'){record.quote='[已删除]';record.prefix='';record.suffix='';}
     return {data:true};
   };
-  globalThis.WorkBuddyCloud={createWorkBuddyCloud:options=>{storage=options.storage;if(user)persistUser();return {auth,database:{from:name=>new Query(name),rpc}};}};
+  const llm={models:{list:async()=>[{id:'hunyuan-chat',enabled:true,modalities:{output:['text']}}]},chat:{completions:{create:async function*(options){
+    mock.modelCalls++;if(mock.modelGate)await mock.modelGate;if(mock.modelError)throw Error('fixture model unavailable');
+    const record=JSON.parse(options.messages[1].content).record;
+    const evidence=record.split('\n').find(s=>s.trim())?.slice(0,200)||record;
+    const review=mock.review||{summary:'演示点评：记录了具体成果，可以补充反思与下一步。',dimensions:Object.fromEntries(['specificity','reflection','action'].map(k=>[k,{score:4,reason:'测试数据，仅用于验证界面和保存流程。',evidence:[evidence]}])),suggestions:['说明一个关键原因，并给出明天的验收标准。']};
+    const raw=typeof review==='string'?review:JSON.stringify(review);
+    yield {choices:[{delta:{content:raw.slice(0,40)}}]};yield {choices:[{delta:{content:raw.slice(40)},finish_reason:'stop'}]};
+  }}}};
+  globalThis.WorkBuddyCloud={createWorkBuddyCloud:options=>{storage=options.storage;if(user)persistUser();return {auth,database:{from:name=>new Query(name),rpc},llm};}};
   globalThis.__fixture={rows,mock,setUser:async id=>{user=id?{id}:null;persistUser();events.forEach(f=>f(id?'SIGNED_IN':'SIGNED_OUT'));}};
 })();

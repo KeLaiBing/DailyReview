@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>反馈机</title><link rel="stylesheet" href="editor.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>反馈机</title><link rel="stylesheet" href="editor.css"><link rel="stylesheet" href="agent.css"></head>
 <body class="read-only">
 <!-- 游客只读；写入由 WorkBuddy 身份认证及数据库 RLS 双重校验。 -->
 <div id="app">
@@ -22,6 +22,14 @@
         <article id="paper">
           <input id="docTitle" aria-label="文档标题" placeholder="无标题文档">
           <div class="doc-meta"><span class="avatar">我</span><span>成员文档</span><span class="meta-divider"></span><span id="modified"></span></div>
+          <div class="daily-agent-tools"><button id="reviewToday" type="button">✦ 点评今日日结</button><button id="openBadges" type="button">勋章墙 <span id="badgeCount">—</span></button></div>
+          <section id="dailyAgent" class="daily-agent" aria-label="日结点评与勋章" hidden>
+            <div class="daily-agent-head"><div><strong>每一份复盘，都在积累</strong><p id="reviewTarget"></p></div><button id="closeDailyAgent" class="icon" aria-label="收起日结点评">×</button></div>
+            <p class="review-explainer">大模型只点评当前文档今天的文字，图片暂不识别。点评会保存到此文档，供成员共同查看。</p>
+            <div class="review-status-row"><p id="reviewStatus" role="status"></p><button id="cancelDailyReview" type="button" hidden>停止</button><button id="retryReviewSave" type="button" hidden>重试保存</button></div>
+            <div id="dailyReviewResult"></div>
+            <div class="medal-collection"><div class="medal-heading"><strong>这份文档的勋章</strong><span id="qualityDayCount">正在读取勋章…</span></div><div id="badgeGrid" class="badge-grid"></div><p class="medal-rules">记录具体、复盘深入、行动清晰，各 0–5 分。总分 ≥80 且每项 ≥3 为优质日结，达 4 分的维度解锁勋章。累计 3／7／30 个优质日期获得成长勋章；同一天只计一次。日期以北京时间为准。</p></div>
+          </section>
           <div id="editor" contenteditable="false" role="textbox" aria-label="文档正文" aria-multiline="true" spellcheck="false"></div>
         </article>
         <button id="insertPlus" class="icon" aria-label="插入内容" title="插入内容">＋</button>
@@ -42,4 +50,6 @@
 <script src="editor.js"></script>
 <script src="comment-deletion.js"></script>
 <script src="collaboration.js"></script>
+<script src="agent-core.js"></script>
+<script src="journal-agent.js"></script>
 </body></html>

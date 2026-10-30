@@ -14,4 +14,4 @@ for(const name of assets){
   const data=fs.readFileSync(path.join(root,name));fs.writeFileSync(target,data);
   console.log(name+'  '+crypto.createHash('sha256').update(data).digest('hex'));
 }
-console.log('dist contains only six public static assets. Deploy through WorkBuddy.');
+console.log('dist contains only allowlisted public static assets. Deploy through WorkBuddy.');
