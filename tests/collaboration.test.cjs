@@ -1,6 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {anchor,locate,dateTitle}=require('../collaboration-core.js');
+const {JSDOM}=require('jsdom');
+const {anchor,locate,dateTitle,buildTemplateInsertion}=require('../collaboration-core.js');
 test('selected Chinese text survives insertions before its anchor',()=>{
   const s='今天的任务：完成报告。晚上复盘。', a=anchor(s,6,10);
   assert.equal(a.quote,'完成报告');
@@ -22,4 +23,35 @@ test('offsets use DOM UTF-16 positions including emoji',()=>{
 });
 test('date headings use the chosen day',()=>{
   assert.equal(dateTitle('2026-10-30'),'日期：2026.10.30');
+});
+// 与 useTemplate 相同的插入路径：Range.insertNode 直接插入显式构造的片段。
+function insertTemplate(editorHtml,templateHtml,title){
+  const dom=new JSDOM('<div id="editor" contenteditable="true">'+editorHtml+'</div>');
+  const {document}=dom.window,editor=document.getElementById('editor');
+  const existing=[...editor.querySelectorAll('h1')].find(h=>h.textContent.trim()===title);
+  const range=document.createRange();
+  if(existing){range.setStartAfter(existing);range.collapse(true);}
+  else{range.setStart(editor,editor.childNodes.length);range.collapse(true);}
+  range.insertNode(buildTemplateInsertion(document,templateHtml,title,Boolean(existing)));
+  const result=editor.innerHTML;dom.window.close();return result;
+}
+test('template without a heading gains the chosen day heading at the document end',()=>{
+  const html=insertTemplate('<h1>日期：2026.10.29</h1><p>昨天</p>','<p>任务目标：</p><p>今日总结：</p>','日期：2026.10.30');
+  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p><p>今日总结：<\/p><p><br><\/p>$/);
+  assert.equal((html.match(/日期：2026\.10\.30/g)||[]).length,1);
+});
+test('stale saved date headings are replaced by the chosen day instead of lingering',()=>{
+  const html=insertTemplate('<p><br></p>','<h1>日期：2026.10.01</h1><p>任务目标：</p>','日期：2026.10.30');
+  assert.doesNotMatch(html,/2026\.10\.01/);
+  assert.equal((html.match(/<h1>/g)||[]).length,1);
+  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p>/);
+});
+test('an existing day heading is reused without duplication and content lands after it',()=>{
+  const html=insertTemplate('<h1>日期：2026.10.30</h1><p>已有内容</p>','<h1>日期：2026.10.01</h1><p>任务目标：</p>','日期：2026.10.30');
+  assert.equal((html.match(/日期：2026\.10\.30/g)||[]).length,1);
+  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><p>任务目标：<\/p><p><br><\/p><p>已有内容<\/p>/);
+});
+test('non-date headings inside a template become subsections beneath the day heading',()=>{
+  const html=insertTemplate('<p><br></p>','<h1>我的复盘</h1><p>任务目标：</p>','日期：2026.10.30');
+  assert.match(html,/<h1>日期：2026\.10\.30<\/h1><h2>我的复盘<\/h2><p>任务目标：<\/p>/);
 });

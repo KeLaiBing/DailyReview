@@ -20,6 +20,7 @@ window.Collaboration = (() => {
     editor.contentEditable=String(allowed && Boolean(current)); editor.setAttribute('aria-readonly',String(!allowed || !current));
     ['docTitle','workspaceName','folderName'].forEach(id=>$(id).readOnly=!allowed);
     ['newDoc','addDay'].forEach(id=>$(id).disabled=!allowed);
+    renderMember();
     $('accountButton').textContent=allowed?nameOf(user.id):'登录 / 注册';
     $('accessBanner').firstChild.textContent=allowed?'已登录 · 成员可共同编辑，也可划词评论。':'游客模式 · 登录后可编辑文档、保存模板和参与评论。';
     $('loginLink').hidden=allowed;
@@ -42,7 +43,28 @@ window.Collaboration = (() => {
     if(!force && Date.now()-lastProfiles<30000)return;
     const data=await run(table('shared_profiles').select('owner_id,display_name'));
     profiles=new Map(data.map(p=>[p.owner_id,p.display_name])); lastProfiles=Date.now();
+    renderMember();
   }
+  function renderMember(){
+    const select=$('documentMember');select.replaceChildren(new Option('未绑定成员',''));
+    for(const [id,name] of profiles)select.add(new Option(name,id));
+    if(current?.member_id&&!profiles.has(current.member_id))select.add(new Option(nameOf(current.member_id),current.member_id));
+    select.value=current?.member_id||'';select.disabled=!user||!current;
+  }
+  $('documentMember').onchange=async()=>{
+    if(!requireUser()||!current)return;
+    const id=current.id,member=$('documentMember').value||null;
+    $('documentMember').disabled=true;
+    try{
+      await persist();if(current?.id!==id)return;
+      const rev=versions.get(id)||current.rev||0;
+      const result=await run(table('shared_documents').update({member_id:member,rev:rev+1,updated:Date.now()}).eq('id',id).eq('rev',rev).select());
+      if(!result?.length)throw Error('文档已被他人更新，请刷新后再设置所属成员');
+      versions.set(id,rev+1);const doc=docs.find(d=>d.id===id);if(doc){doc.member_id=member;doc.rev=rev+1;}
+      if(current?.id===id){current.member_id=member;current.rev=rev+1;window.dispatchEvent(new Event('journal-document-changed'));window.JournalAgent?.loadRemote();}
+      toast('所属成员已保存，历史勋章已计入该成员');
+    }catch(e){toast(errorText(e));}finally{renderMember();}
+  };
   async function init() {
     applyAccess();
     if(!shared)return;
@@ -144,16 +166,19 @@ window.Collaboration = (() => {
     if(!requireUser() || !current){toast('请先打开或新建成员文档');return;}
     if(!$('templateDate').reportValidity())return;
     const date=$('templateDate').value, title=JournalCore.dateTitle(date);
-    const container=document.createElement('div'); container.innerHTML=cleanHTML(template.html);
-    let dateHeading=[...container.querySelectorAll('h1')].find(h=>/^日期\s*[:：]/.test(h.textContent.trim()));
-    if(dateHeading)dateHeading.textContent=title;
-    else {dateHeading=document.createElement('h1');dateHeading.textContent=title;container.prepend(dateHeading);}
-    const existing=[...editor.querySelectorAll('h1')].find(h=>h.textContent.trim()===title);
+    const matches=[...editor.querySelectorAll('h1')].filter(h=>JournalCore.dateOf(h.textContent)===date);
+    if(matches.length>1){toast('当天有多个大标题，请先合并后再使用模板');return;}
+    const existing=matches[0];
     const range=document.createRange();
-    if(existing){dateHeading.remove();range.setStartAfter(existing);range.collapse(true);}
-    else{range.selectNodeContents(editor);range.collapse(true);}
-    $('templateDialog').close();insertHTML(container.innerHTML+'<p><br></p>',range);renderOutline();
-    const heading=existing || [...editor.querySelectorAll('h1')].find(h=>h.textContent===title);
+    if(existing){range.setStartAfter(existing);range.collapse(true);}
+    else{range.setStart(editor,editor.childNodes.length);range.collapse(true);}
+    const fragment=JournalCore.buildTemplateInsertion(document,cleanHTML(template.html),title,Boolean(existing));
+    $('templateDialog').close();
+    if(!requireEdit())return;
+    range.insertNode(fragment);
+    const heading=existing || [...editor.querySelectorAll('h1')].find(h=>h.textContent.trim()===title);
+    if(heading)setCaret(heading.nextElementSibling||heading,true);
+    selectedRange=capture();changed();renderOutline();
     heading?.scrollIntoView({block:'center'});toast('已插入 '+title+' 的模板内容');
   }
   function renderTemplates() {
@@ -292,5 +317,5 @@ window.Collaboration = (() => {
   }
   editor.addEventListener('input',()=>{clearTimeout(highlightTimer);highlightTimer=setTimeout(refreshHighlights,250);});
   $('commentList').addEventListener('focusout',()=>setTimeout(()=>{if(!$('commentList').contains(document.activeElement))renderComments();},0));
-  return {get user(){return user;},get displayName(){return user?nameOf(user.id):'新成员';},init,login,documentChanged,refreshHighlights};
+  return {get user(){return user;},get displayName(){return user?nameOf(user.id):'新成员';},get memberId(){return profiles.has(user?.id)?user.id:null;},nameOf,init,login,documentChanged,refreshHighlights};
 })();

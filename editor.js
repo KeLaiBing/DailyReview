@@ -9,7 +9,7 @@ const savedLabel = () => shared ? '已保存到共享空间' : '已保存到此�
 let db, docs = [], current = null, selectedRange = null, hoverBlock = null, menuBlock = null;
 let saveQueue = Promise.resolve(), revision = 0, outlineTimer, activeCell = null, pickerContext;
 const newId = () => crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), n=>n.toString(16).padStart(2,'0')).join('');
-const today = () => new Date().toLocaleDateString('sv-SE');
+const today = () => new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, 4000); }
 function database() {
@@ -68,7 +68,7 @@ async function newDoc(title) {
   if(!requireEdit()) return;
   if (current) await persist();
   const now = Date.now();
-  const doc = {id:newId(), date:today(), title:title || (window.Collaboration.displayName+'的日结'), html:'<p><br></p>', created:now, updated:now};
+  const doc = {id:newId(), member_id:window.Collaboration.memberId, date:today(), title:title || (window.Collaboration.displayName+'的日结'), html:'<p><br></p>', created:now, updated:now};
   await writeDoc(doc); docs.push(doc); await openDoc(doc); $('docTitle').focus(); $('docTitle').select();
 }
 function addDay() {
@@ -296,7 +296,7 @@ async function api(path, options={}) {
     return unwrap(await cloud.database.from('shared_documents').select('*'));
   }
   if (path === '/api/documents?summary=1') {
-    return unwrap(await cloud.database.from('shared_documents').select('id,date,title,created,updated,rev'));
+    return unwrap(await cloud.database.from('shared_documents').select('id,date,title,created,updated,rev,member_id'));
   }
   // ---- 单个文档 ----
   const match = path.match(/^\/api\/documents\/(.+)$/);
@@ -308,7 +308,7 @@ async function api(path, options={}) {
       if (updated && updated.length) return {rev};
       const exists = unwrap(await cloud.database.from('shared_documents').select('id').eq('id',id).maybeSingle());
       if (exists) throw httpError(409,'文档已被他人修改');
-      unwrap(await cloud.database.from('shared_documents').insert({id, ...DOC_FIELDS(body), rev}).select());
+      unwrap(await cloud.database.from('shared_documents').insert({id, ...DOC_FIELDS(body), member_id:body.member_id||null, rev}).select());
       return {rev};
     }
     const row = unwrap(await cloud.database.from('shared_documents').select('*').eq('id',id).maybeSingle());
@@ -363,7 +363,7 @@ async function sync() {
       if(savedRevision!==revision || conflict || current?.id!==latest.id) return;
       versions.set(latest.id,latest.rev); current=latest;
       $('docTitle').value=latest.title; editor.innerHTML=cleanHTML(latest.html || '<p><br></p>'); latest.html=editor.innerHTML; window.Collaboration?.refreshHighlights();
-      $('crumbTitle').textContent=latest.title; $('modified').textContent='已同步其他人的修改'; renderOutline();
+      $('crumbTitle').textContent=latest.title; $('modified').textContent='已同步其他人的修改'; renderOutline();window.Collaboration?.documentChanged();
     }
     for(const item of remote) {
       const i=docs.findIndex(d=>d.id===item.id);

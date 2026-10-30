@@ -21,14 +21,15 @@
       <div id="scrollArea">
         <article id="paper">
           <input id="docTitle" aria-label="文档标题" placeholder="无标题文档">
-          <div class="doc-meta"><span class="avatar">我</span><span>成员文档</span><span class="meta-divider"></span><span id="modified"></span></div>
-          <div class="daily-agent-tools"><button id="reviewToday" type="button">✦ 点评今日日结</button><button id="openBadges" type="button">勋章墙 <span id="badgeCount">—</span></button></div>
+          <div class="doc-meta"><span class="avatar">日</span><label for="documentMember">所属成员</label><select id="documentMember" aria-label="文档所属成员"><option value="">未绑定成员</option></select><span class="meta-divider"></span><span id="modified"></span></div>
+          <div class="daily-agent-tools"><button id="reviewToday" type="button">✦ 点评今日日结</button><button id="openBadges" type="button">个人勋章 <span id="badgeCount">—</span></button><button id="modelSettingsButton" type="button">⚙ 模型设置</button></div>
           <section id="dailyAgent" class="daily-agent" aria-label="日结点评与勋章" hidden>
             <div class="daily-agent-head"><div><strong>每一份复盘，都在积累</strong><p id="reviewTarget"></p></div><button id="closeDailyAgent" class="icon" aria-label="收起日结点评">×</button></div>
             <p class="review-explainer">大模型只点评当前文档今天的文字，图片暂不识别。点评会保存到此文档，供成员共同查看。</p>
+            <div class="review-model-row"><label for="reviewModel">点评模型</label><select id="reviewModel" aria-label="选择点评模型"></select><small id="reviewModelHint">正在读取模型目录…</small></div>
             <div class="review-status-row"><p id="reviewStatus" role="status"></p><button id="cancelDailyReview" type="button" hidden>停止</button><button id="retryReviewSave" type="button" hidden>重试保存</button></div>
             <div id="dailyReviewResult"></div>
-            <div class="medal-collection"><div class="medal-heading"><strong>这份文档的勋章</strong><span id="qualityDayCount">正在读取勋章…</span></div><div id="badgeGrid" class="badge-grid"></div><p class="medal-rules">记录具体、复盘深入、行动清晰，各 0–5 分。总分 ≥80 且每项 ≥3 为优质日结，达 4 分的维度解锁勋章。累计 3／7／30 个优质日期获得成长勋章；同一天只计一次。日期以北京时间为准。</p></div>
+            <div class="medal-collection"><div class="medal-heading"><strong id="badgeOwner">成员累计勋章</strong><span id="qualityDayCount">正在读取勋章…</span></div><p id="badgeScope" class="review-footnote"></p><div id="badgeGrid" class="badge-grid"></div><p class="medal-rules">记录具体、复盘深入、行动清晰，各 0–5 分。总分 ≥80 且每项 ≥3 为优质日结，达 4 分的维度当天获得一枚对应勋章；同一成员跨日期累计，同日同类型不重复。累计 3／7／30 个优质日期各获一枚成长勋章。勋章归文档所属成员，不归点评发起者。日期以北京时间为准。</p></div>
           </section>
           <div id="editor" contenteditable="false" role="textbox" aria-label="文档正文" aria-multiline="true" spellcheck="false"></div>
         </article>
@@ -45,11 +46,30 @@
 <dialog id="authDialog" aria-labelledby="authTitle"><button class="dialog-close icon" data-close="authDialog" aria-label="关闭">×</button><h2 id="authTitle">加入反馈机</h2><p class="muted">手机号验证码登录，未注册的手机号将自动创建账号。</p><form id="authForm"><label>手机号<input id="authPhone" type="tel" autocomplete="tel-national" inputmode="tel" maxlength="11" pattern="1[0-9]{10}" required placeholder="11 位手机号"></label><label>验证码<div class="code-row"><input id="authCode" autocomplete="one-time-code" inputmode="numeric" maxlength="8" required placeholder="短信验证码"><button id="sendCode" type="button">获取验证码</button></div></label><p id="authError" role="alert" class="form-error"></p><button id="submitAuth" type="submit" class="primary wide">登录 / 注册</button></form></dialog>
 <dialog id="accountDialog" aria-labelledby="accountTitle"><button class="dialog-close icon" data-close="accountDialog" aria-label="关闭">×</button><h2 id="accountTitle">我的账号</h2><form id="profileForm"><label>评论显示名称<input id="displayName" maxlength="40" required placeholder="你的名字"></label><p class="muted">名称显示在评论和回复中。</p><button type="submit" class="primary">保存名称</button><button id="signOut" type="button">退出登录</button></form></dialog>
 <dialog id="templateDialog" aria-labelledby="templateTitle"><button class="dialog-close icon" data-close="templateDialog" aria-label="关闭">×</button><h2 id="templateTitle">我的日结模板</h2><p class="muted">在正文选中内容，点击“存为模板”。表格、图片和待办会一并保留。</p><form id="templateForm" hidden><label>模板名称<input id="templateName" maxlength="80" required placeholder="例如：每日复盘"></label><div id="templatePreview" class="rich-preview"></div><button class="primary" type="submit">保存选中内容</button></form><label class="template-date">日结日期<input id="templateDate" type="date" required></label><div id="templateList"></div></dialog>
+<dialog id="modelSettingsDialog" aria-labelledby="modelSettingsTitle">
+  <button class="dialog-close icon" data-close="modelSettingsDialog" aria-label="关闭模型设置">×</button>
+  <h2 id="modelSettingsTitle">点评模型设置</h2>
+  <p class="muted">只发送当前文档当天的文字。选择偏好保存在此浏览器，按登录账号区分。</p>
+  <form id="modelSettingsForm">
+    <label>模型来源<select id="modelProvider"><option value="workbuddy">WorkBuddy 云端模型</option><option value="api">自定义 API（Chat Completions 兼容）</option></select></label>
+    <div id="nativeModelFields"><label>模型<select id="nativeModel"></select></label><button id="reloadModels" type="button">刷新模型列表</button><p class="muted">无需填写 Key。额度与费用按 WorkBuddy 云应用实际规则计算。</p></div>
+    <div id="apiModelFields" hidden>
+      <label>API 地址<input id="apiBaseUrl" type="url" maxlength="500" placeholder="https://你的服务地址/v1" autocomplete="off"></label>
+      <label>模型 ID<input id="apiModel" maxlength="110" placeholder="填写服务商提供的模型 ID" autocomplete="off"></label>
+      <label>API Key<input id="apiKey" type="password" autocomplete="off" placeholder="仅在本页面内存中使用，无鉴权服务可留空"></label>
+      <p class="muted">请求直接发送到你填写的服务，按该服务计费。Key 不保存到云端或浏览器存储，刷新后需重填。服务须允许浏览器跨域访问；本机地址仅在当前电脑有效。</p>
+    </div>
+    <p id="modelSettingsStatus" role="status" class="form-error"></p>
+    <div class="form-actions"><button id="testModelConnection" type="button">测试连接</button><button type="submit" class="primary">保存设置</button></div>
+  </form>
+</dialog>
 <script src="collaboration-core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
 <script src="editor.js"></script>
 <script src="comment-deletion.js"></script>
 <script src="collaboration.js"></script>
 <script src="agent-core.js"></script>
+<script src="model-client.js"></script>
+<script src="model-settings.js"></script>
 <script src="journal-agent.js"></script>
 </body></html>

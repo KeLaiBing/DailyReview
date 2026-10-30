@@ -15,7 +15,7 @@ async function app(guest=false){
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
   w.confirm=()=>true;
   w.document.execCommand=(cmd,_,html)=>{if(cmd==='insertHTML'){const s=w.getSelection(),r=s.getRangeAt(0);r.deleteContents();const fragment=r.createContextualFragment(html),last=fragment.lastChild;r.insertNode(fragment);r.setStartAfter(last);r.collapse(true);s.removeAllRanges();s.addRange(r);}return true;};
-  ['tests/cloud-fixture.js','collaboration-core.js','editor.js','comment-deletion.js','collaboration.js','agent-core.js','journal-agent.js'].forEach(file=>new vm.Script(fs.readFileSync(path.join(root,file),'utf8'),{filename:file}).runInContext(dom.getInternalVMContext()));
+  ['tests/cloud-fixture.js','collaboration-core.js','editor.js','comment-deletion.js','collaboration.js','agent-core.js','model-client.js','model-settings.js','journal-agent.js'].forEach(file=>new vm.Script(fs.readFileSync(path.join(root,file),'utf8'),{filename:file}).runInContext(dom.getInternalVMContext()));
   await tick();await tick();return {dom,w,$:id=>w.document.getElementById(id)};
 }
 function select(w,node){const r=w.document.createRange();r.selectNodeContents(node);const s=w.getSelection();s.removeAllRanges();s.addRange(r);w.document.dispatchEvent(new w.Event('selectionchange'));}
@@ -27,7 +27,7 @@ test('reviewing another member awards that document once and survives reload',as
   await $('reviewToday').onclick();await tick();
   assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
   const review=w.__fixture.rows.shared_daily_reviews[0];assert.equal(review.document_id,'doc-b');assert.equal(review.reviewer_id,'user-a');
-  assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.match($('badgeCount').textContent,/3 \/ 6/);
+  assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.match($('badgeCount').textContent,/3 枚/);assert.match($('badgeOwner').textContent,/小周/);
   await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);assert.equal(w.__fixture.rows.shared_quality_days.length,1);
   await w.__fixture.setUser('user-b');await tick();await w.JournalAgent.loadRemote();assert.match($('dailyReviewResult').textContent,/80/);assert.match($('qualityDayCount').textContent,/1 天/);
  }finally{dom.window.close();}
@@ -92,7 +92,8 @@ test('selected template retains tables, images and todos; inserts a chosen daily
     $('templateName').value='每日复盘';submit(w,$('templateForm'));await tick();
     assert.equal(w.__fixture.rows.shared_templates.length,1);
     $('templateDate').value='2026-11-02';$('templateList').querySelector('button').click();await tick();
-    assert.equal($('editor').querySelector('h1').textContent,'日期：2026.11.02');
+    assert.equal([...$('editor').querySelectorAll('h1')].filter(h=>h.textContent==='日期：2026.11.02').length,1);
+    assert.ok($('editor').querySelector('h1').textContent.includes('2026.10.30'));
     assert.ok(w.__fixture.rows.shared_documents[0].html.includes('2026.11.02'));
   }finally{dom.window.close();}
 });
@@ -160,4 +161,98 @@ test('delete cancellation, failure and stale ownership retain content',async()=>
   const button=$('commentList').querySelector('.delete-comment');await w.__fixture.setUser('user-b');await tick();button.click();await tick();assert.equal(w.__fixture.rows.shared_comment_threads[0].deleted_at,undefined);
   $('commentsButton').click();await tick();assert.equal($('commentList').querySelector('.delete-comment'),null);
  }finally{dom.window.close();}
+});
+test('member badges aggregate all owned documents and days but never other members',async()=>{
+  const {dom,w,$}=await app();try{
+    const rows=w.__fixture.rows;
+    rows.shared_documents.push({id:'doc-a2',member_id:'user-a',owner_id:'user-b'});
+    rows.shared_quality_days.push(
+      {document_id:'doc-a',review_date:'2026-10-27',criteria:['specificity','action']},
+      {document_id:'doc-a2',review_date:'2026-10-27',criteria:['specificity','reflection']},
+      {document_id:'doc-a2',review_date:'2026-10-28',criteria:['specificity']},
+      {document_id:'doc-a',review_date:'2026-10-29',criteria:['specificity']},
+      {document_id:'doc-b',review_date:'2026-10-26',criteria:['action']});
+    await w.JournalAgent.loadRemote();
+    assert.match($('qualityDayCount').textContent,/3 天.*6 枚/);assert.match($('badgeOwner').textContent,/小林/);
+    assert.match($('badgeGrid').children[0].textContent,/× 3/);assert.match($('badgeGrid').children[2].textContent,/× 1/);
+    await w.__fixture.setUser('user-b');await tick();await w.JournalAgent.loadRemote();assert.match($('badgeCount').textContent,/6 枚/);
+    $('documentMember').value='user-b';await $('documentMember').onchange();await tick();
+    assert.equal(rows.shared_documents[0].member_id,'user-b');assert.match($('badgeOwner').textContent,/小周/);
+    assert.equal(rows.shared_documents[0].owner_id,'user-a');
+  }finally{dom.window.close();}
+});
+test('switching native models re-evaluates one day without duplicating its badges',async()=>{
+  const {dom,w,$}=await app();try{
+    $('editor').innerHTML=require('./daily-review-sample.cjs')(w.JournalAgentCore.shanghaiDate());
+    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,1);
+    assert.doesNotMatch(w.__fixture.mock.lastRequest.messages[1].content,/NEIGHBOR_ONLY|FUTURE_ONLY/);
+    assert.match(w.__fixture.mock.lastRequest.messages[1].content,/明天9点到10点/);
+    $('reviewModel').value='fixture-second';$('reviewModel').onchange();await $('reviewToday').onclick();
+    assert.equal(w.__fixture.mock.modelCalls,2);assert.equal(w.__fixture.rows.shared_daily_reviews[0].model,'fixture-second');
+    assert.equal(w.__fixture.rows.shared_quality_days.length,1);assert.match($('badgeCount').textContent,/3 枚/);
+    await $('reviewToday').onclick();assert.equal(w.__fixture.mock.modelCalls,2);
+  }finally{dom.window.close();}
+});
+test('API preferences survive reopening, keys stay out of storage and are cleared on account switch',async()=>{
+  const {dom,w,$}=await app();try{
+    $('modelSettingsButton').click();await tick();$('modelProvider').value='api';$('modelProvider').onchange();
+    $('apiBaseUrl').value='https://sample.invalid/v1';$('apiModel').value='sample-model';$('apiKey').value='test-only-secret';
+    submit(w,$('modelSettingsForm'));assert.equal($('modelSettingsDialog').open,false);
+    assert.ok(!JSON.stringify({...w.localStorage}).includes('test-only-secret'));
+    assert.equal((await w.JournalModelSettings.selected()).apiKey,'test-only-secret');
+    $('modelSettingsButton').click();assert.equal($('apiModel').value,'sample-model');$('modelSettingsDialog').close();
+    await w.__fixture.setUser('user-b');await tick();assert.equal((await w.JournalModelSettings.selected()).provider,'workbuddy');
+    await w.__fixture.setUser('user-a');await tick();const restored=await w.JournalModelSettings.selected();
+    assert.equal(restored.provider,'api');assert.equal(restored.apiModel,'sample-model');assert.equal(restored.apiKey,'');
+  }finally{dom.window.close();}
+});
+test('custom API review saves validated output; failures never fall back or award badges',async()=>{
+  const {dom,w,$}=await app();try{
+    setToday(w,$);$('modelSettingsButton').click();await tick();$('modelProvider').value='api';$('apiBaseUrl').value='https://sample.invalid/v1';$('apiModel').value='sample';$('apiKey').value='test-only-secret';submit(w,$('modelSettingsForm'));
+    w.fetch=async()=>({ok:false,status:401});await $('reviewToday').onclick();
+    assert.equal(w.__fixture.mock.modelCalls,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);assert.match($('reviewStatus').textContent,/401/);
+    let request;
+    w.fetch=async(url,options)=>{request=options;const source=JSON.parse(JSON.parse(options.body).messages[1].content).record;
+      const review={summary:'API 测试',dimensions:Object.fromEntries(['specificity','reflection','action'].map(k=>[k,{score:4,reason:'测试依据',evidence:[source.split('\n')[0]]}])),suggestions:['明确下一步']};
+      return {ok:true,text:async()=>JSON.stringify({choices:[{message:{content:JSON.stringify(review)},finish_reason:'stop'}]})};};
+    await $('reviewToday').onclick();assert.equal(w.__fixture.rows.shared_daily_reviews.length,1,$('reviewStatus').textContent);
+    assert.equal(request.headers.Authorization,'Bearer test-only-secret');assert.equal(w.__fixture.mock.modelCalls,0);
+    assert.ok(!JSON.stringify(w.__fixture.rows).includes('test-only-secret'));
+  }finally{dom.window.close();}
+});
+test('template reuses equivalent dates and saves exactly one top-level date heading',async()=>{
+  const {dom,w,$}=await app();try{
+    $('editor').innerHTML='<h1>日期：2026年11月2日</h1><p>保留已有记录</p>';
+    w.__fixture.rows.shared_templates.push({id:'template-test',owner_id:'user-a',name:'测试模板',created:1,html:'<h1>2020-1-1</h1><h1>任务</h1><table><tr><td>复盘内容</td></tr></table><p class="todo" data-done="false">行动</p>'});
+    $('templatesButton').click();await tick();$('templateDate').value='2026-11-02';$('templateList').querySelector('button').click();await tick();
+    assert.equal($('editor').querySelectorAll('h1').length,1);assert.ok($('editor').querySelector('h2'));
+    assert.match($('editor').textContent,/保留已有记录/);assert.doesNotMatch($('editor').textContent,/2020/);
+    assert.equal(w.__fixture.rows.shared_documents[0].html,$('editor').innerHTML);
+    assert.match($('outlineItems').textContent,/2026年11月2日/);
+  }finally{dom.window.close();}
+});
+test('connection testing sends only a test sentence and no journal or cloud write',async()=>{
+  const {dom,w,$}=await app();try{
+    $('modelSettingsButton').click();await tick();await $('testModelConnection').onclick();
+    assert.match($('modelSettingsStatus').textContent,/连接成功/);
+    assert.equal(w.__fixture.mock.lastRequest.messages[0].role,'system');
+    assert.equal(w.__fixture.mock.lastRequest.messages[1].content,'连接测试，请只回复“连接成功”。');
+    assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+  }finally{dom.window.close();}
+});
+test('changing the member during inference discards the result instead of awarding someone else',async()=>{
+  const {dom,w,$}=await app();try{
+    setToday(w,$);let release;w.__fixture.mock.modelGate=new Promise(r=>release=r);
+    const pending=$('reviewToday').onclick();await tick();
+    $('documentMember').value='user-b';await $('documentMember').onchange();release();await pending;
+    assert.equal(w.__fixture.rows.shared_daily_reviews.length,0);assert.equal(w.__fixture.rows.shared_quality_days.length,0);
+    assert.match($('badgeOwner').textContent,/小周/);
+  }finally{dom.window.close();}
+});
+test('remote member changes update the selector and badge owner on synchronization',async()=>{
+  const {dom,w,$}=await app();try{
+    w.__fixture.rows.shared_documents[0].member_id='user-b';w.__fixture.rows.shared_documents[0].rev++;
+    await w.eval('sync()');await tick();
+    assert.equal($('documentMember').value,'user-b');assert.match($('badgeOwner').textContent,/小周/);
+  }finally{dom.window.close();}
 });

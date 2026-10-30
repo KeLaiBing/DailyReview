@@ -33,3 +33,36 @@ test('quality requires all dimensions >=3 and score >=80; milestones count uniqu
   assert.equal(core.collection([...days,...days]).count,30);
   assert.deepEqual(core.collection(days).earned,['specificity','quality_3','quality_7','quality_30']);
 });
+test('dimension badges accumulate once per qualified day and totals sum every badge',()=>{
+  const days=[
+    {review_date:'2026-10-28',criteria:['specificity','action']},
+    {review_date:'2026-10-29',criteria:['specificity','reflection']},
+    {review_date:'2026-10-30',criteria:['specificity']},
+  ];
+  const collection=core.collection([...days,days[0]]);
+  assert.equal(collection.count,3);
+  assert.deepEqual(collection.counts,{specificity:3,reflection:1,action:1,quality_3:1,quality_7:0,quality_30:0});
+  assert.equal(collection.total,6);
+  assert.deepEqual(core.collection([]),{count:0,earned:[],counts:{specificity:0,reflection:0,action:0,quality_3:0,quality_7:0,quality_30:0},total:0});
+});
+test('model picker lists text models in catalogue order and prefers hunyuan-chat',()=>{
+  const list=[
+    {id:'reasoner',onlyReasoning:true,modalities:{output:['text']}},
+    {id:'disabled-text',enabled:false,modalities:{output:['text']}},
+    {id:'alpha-text',modalities:{output:['text']}},
+    {id:'hunyuan-chat'},
+    {id:'tools-model',supportsToolCall:true,maxOutputTokens:1024},
+  ];
+  assert.deepEqual(core.selectableModels(list).map(m=>m.id),['reasoner','alpha-text','hunyuan-chat','tools-model']);
+  assert.equal(core.defaultModelId(list),'hunyuan-chat');
+  assert.equal(core.defaultModelId([list[2],list[4]]),'alpha-text');
+  assert.equal(core.defaultModelId([]),null);assert.equal(core.defaultModelId(null),null);
+});
+test('ordinary headings do not truncate a day and member IDs never come from the reviewer or creator',()=>{
+  withEditor(require('./daily-review-sample.cjs')('2026-10-30'),editor=>{
+    const section=core.daily(editor,'2026-10-30');assert.match(section.text,/明天9点到10点/);assert.doesNotMatch(section.text,/NEIGHBOR_ONLY|FUTURE_ONLY/);
+  });
+  const docs=[{id:'a',member_id:'A',owner_id:'B'},{id:'a2',member_id:'A'},{id:'b',member_id:'B'},{id:'old',owner_id:'A'}];
+  assert.deepEqual(core.memberDocumentIds(docs[0],docs),['a','a2']);
+  assert.deepEqual(core.memberDocumentIds(docs[3],docs),['old']);
+});

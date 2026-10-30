@@ -20,7 +20,7 @@
     return value+(['P','DIV','H1','H2','H3','LI','TR','BLOCKQUOTE'].includes(tag)?'\n':'');
   }
   function sections(editor){
-    const headings=[...editor.querySelectorAll('h1')];
+    const headings=[...editor.querySelectorAll('h1')].filter(h=>dateOf(h.textContent));
     return headings.map((heading,index)=>{
       const range=editor.ownerDocument.createRange();range.setStartAfter(heading);
       if(headings[index+1])range.setEndBefore(headings[index+1]);else range.setEnd(editor,editor.childNodes.length);
@@ -83,13 +83,33 @@
     return {score:Math.round(sum/15*100),qualified,criteria:qualified?keys.filter(k=>review.dimensions[k].score>=4):[]};
   }
   function collection(days){
-    const dates=new Set(),earned=new Set();for(const day of days){dates.add(day.review_date);for(const id of day.criteria||[])if(keys.includes(id))earned.add(id);}
-    for(const b of badges)if(b.days&&dates.size>=b.days)earned.add(b.id);
-    return {count:dates.size,earned:[...earned]};
+    // 同一天只计一次：先按日期合并 criteria，重复行不会重复累计勋章。
+    const byDate=new Map();
+    for(const day of days||[]){
+      if(!byDate.has(day.review_date))byDate.set(day.review_date,new Set());
+      const criteria=byDate.get(day.review_date);for(const id of day.criteria||[])if(keys.includes(id))criteria.add(id);
+    }
+    const earned=new Set(),counts={};for(const b of badges)counts[b.id]=0;
+    for(const criteria of byDate.values())for(const id of criteria){earned.add(id);counts[id]++;}
+    for(const b of badges)if(b.days&&byDate.size>=b.days){earned.add(b.id);counts[b.id]=1;}
+    return {count:byDate.size,earned:[...earned],counts,total:Object.values(counts).reduce((a,b)=>a+b,0)};
+  }
+  // 仅列出可用于文字点评的模型；保持目录原顺序，默认 hunyuan-chat。
+  function selectableModels(models){
+    return (Array.isArray(models)?models:[]).filter(m=>m&&typeof m.id==='string'&&m.enabled!==false&&m.disabled!==true&&!/image|video/i.test(m.id)
+      &&(m.id==='hunyuan-chat'||m.modalities?.output?.includes('text')||(m.supportsToolCall===true&&m.maxOutputTokens>0)));
+  }
+  function defaultModelId(models){
+    const available=selectableModels(models);
+    return (available.find(m=>m.id==='hunyuan-chat')||available[0])?.id||null;
+  }
+  function memberDocumentIds(doc,documents){
+    if(!doc?.member_id)return doc?[doc.id]:[];
+    return [...new Set(documents.filter(d=>d.member_id===doc.member_id).map(d=>d.id).concat(doc.id))];
   }
   function delta(chunk){
     const value=chunk?.choices?.[0]?.delta?.content;
     return typeof value==='string'?value:'';
   }
-  return {MAX_INPUT,dateOf,sections,hasWriting,messages,delta,keys,labels,badges,shanghaiDate,daily,validate,parse,grade,collection};
+  return {MAX_INPUT,dateOf,sections,hasWriting,messages,delta,keys,labels,badges,shanghaiDate,daily,validate,parse,grade,collection,selectableModels,defaultModelId,memberDocumentIds};
 });
