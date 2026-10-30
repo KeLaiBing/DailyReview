@@ -15,8 +15,8 @@
 - [x] tests/model-client.test.cjs 覆盖非法地址、非敏感偏好、API 请求/错误/取消；tests/editor.test.cjs 覆盖设置持久化/切换账号密钥清理、单日输入、切换模型、重复点评幂等和 API 失败不发奖。
 - [x] collaboration-core.js / collaboration.js 按日期识别已有 H1，保留表格/图片/待办，模板旧日期移除，正文一级标题降为二级，确保一天只产生一个日期 H1。测试无标题模板、旧标题、重复日期与保存后的 HTML。
 - [x] agent-core.js / journal-agent.js 按当前文档所属成员查询所有文档并汇总历史奖章；未知归属仅显示当前文档并明确提示，不猜测身份。editor.js 新文档保留创建者 owner_id 并默认绑定已设置名称的 member_id。测试跨文档跨日累计与他人隔离。
-- [ ] WorkBuddy 核验实际模型目录、计费依据、云端 owner_id 和代理能力；用明确标记的合成日结调用真实模型，校验输出/原文证据，合成数据库写入只在回滚事务内验证。
-- [ ] npm run check、npm test、npm run build；浏览器验证模板、模型设置与勋章界面。经原 WorkBuddy 应用发布并核对线上资源；记录实测范围与未验证的自定义 API。
+- [x] WorkBuddy 核验实际模型目录、计费依据、云端 owner_id 和代理能力；真实模型样例 93 分，输出/原文证据校验通过，云端 9 项断言通过且合成数据全部回滚。
+- [x] npm run check、45 项 npm test、npm run build 全通过；浏览器验证模板、模型设置与勋章界面。原 WorkBuddy 应用已发布，线上 11 个资源与构建逐字节一致，GitHub Actions 通过；实测范围与尚未配置的自定义 API 记录于 docs/verification-v0.3.0.md。
 
 ## 验证要点
 

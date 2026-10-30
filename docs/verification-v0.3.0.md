@@ -17,6 +17,14 @@
 
 ## 云端验证
 
-通过 WorkBuddy 在原应用执行迁移 004，保留已有 RLS、原域名及数据库；具体云端执行与回滚验证结果以本机 `private/agent-enhancements-20261030/cloud-validation.md` 为证据，发布状态以随后完成的线上资源核验记录为准。
+通过 WorkBuddy 在原应用执行迁移 004，保留已有 RLS、原域名及数据库。云 SQL 工具每次只接受一条语句，因此逐条应用并核验列、外键、索引、函数和原角色授权。
+
+9 项数据库断言通过：匿名写入拒绝、有效/无效成员外键、当天点评保存、相同模型幂等、更换模型更新、同日奖章去重与成员隔离。测试在单条 DO 语句内切换真实 anon/authenticated 角色，使用合成身份；内层异常子事务回滚全部合成写入。最终四张表的合成行均为零，真实文档、用户和点评/勋章记录保持原样。完整无密钥报告保存在本机 Git 忽略目录 `private/agent-enhancements-20261030/cloud-validation.md`。
 
 历史成员绑定需明确选择，不从标题或创建者账号猜测。WorkBuddy 原生 SDK 不提供余额/结算归属，界面不承诺使用某一成员账号的积分。
+
+## 发布验收
+
+2026-10-30，WorkBuddy 原生工具已将源码提交 `b9c2021` 的 `dist/` 发布到原应用，状态 `verified: true`，原域名保持不变。独立请求核对线上 11 个静态资源，均 HTTP 200 且 SHA256/字节内容与本地构建一致；浏览器成功读取原有文档、所属成员选择和个人勋章入口。
+
+[GitHub Actions 验证](https://github.com/KeLaiBing/DailyReview/actions/runs/41079369610)通过。[正式站点](https://daily-journal-80695.app.workbuddy.host/)已更新。发布报告与资源哈希保存在忽略目录的 `deployment.md`、`published-assets.json`；未公开任何密钥或真实日结内容。

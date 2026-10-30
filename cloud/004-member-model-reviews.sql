@@ -1,4 +1,7 @@
 -- Explicit member binding; creator owner_id stays unchanged. Legacy docs remain unbound until confirmed.
+-- For a SQL client that supports batches, run this transaction as written.
+-- WorkBuddy db_exec_sql accepts one statement per call: apply and verify each DDL/DCL
+-- separately in migrate mode; do not send BEGIN/COMMIT in separate tool calls.
 BEGIN;
 ALTER TABLE public.shared_documents ADD COLUMN IF NOT EXISTS member_id TEXT REFERENCES public.shared_profiles(owner_id);
 CREATE INDEX IF NOT EXISTS shared_documents_member_id_idx ON public.shared_documents(member_id);
